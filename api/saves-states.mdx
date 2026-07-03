@@ -10,7 +10,7 @@ RomM stores save files and save states server-side, making your game progress ac
 
 ## Save Files
 
-### POST /saves
+### POST /api/saves
 
 Upload a save file for a ROM. Accepts `multipart/form-data`.
 
@@ -57,7 +57,7 @@ Upload a save file for a ROM. Accepts `multipart/form-data`.
 </ParamField>
 
 ```bash
-curl -X POST "http://localhost:8080/saves?rom_id=42&emulator=mgba&slot=slot1" \
+curl -X POST "http://localhost:8080/api/saves?rom_id=42&emulator=mgba&slot=slot1" \
   -H "Authorization: Bearer <token>" \
   -F "saveFile=@/path/to/save.sav"
 ```
@@ -84,7 +84,7 @@ curl -X POST "http://localhost:8080/saves?rom_id=42&emulator=mgba&slot=slot1" \
 
 ---
 
-### GET /saves
+### GET /api/saves
 
 List save files for the current user.
 
@@ -96,13 +96,13 @@ List save files for the current user.
 <ParamField query="slot" type="string">Filter to a specific save slot.</ParamField>
 
 ```bash
-curl "http://localhost:8080/saves?rom_id=42" \
+curl "http://localhost:8080/api/saves?rom_id=42" \
   -H "Authorization: Bearer <token>"
 ```
 
 ---
 
-### GET /saves/identifiers
+### GET /api/saves/identifiers
 
 Retrieve only the IDs of the current user's saves.
 
@@ -110,7 +110,7 @@ Retrieve only the IDs of the current user's saves.
 
 ---
 
-### GET /saves/summary
+### GET /api/saves/summary
 
 Retrieve a summary of saves for a ROM, grouped by slot.
 
@@ -119,7 +119,7 @@ Retrieve a summary of saves for a ROM, grouped by slot.
 <ParamField query="rom_id" type="integer" required>ROM internal ID.</ParamField>
 
 ```bash
-curl "http://localhost:8080/saves/summary?rom_id=42" \
+curl "http://localhost:8080/api/saves/summary?rom_id=42" \
   -H "Authorization: Bearer <token>"
 ```
 
@@ -137,7 +137,7 @@ curl "http://localhost:8080/saves/summary?rom_id=42" \
 
 ---
 
-### GET /saves/{id}
+### GET /api/saves/{id}
 
 Retrieve a single save by ID.
 
@@ -148,7 +148,7 @@ Retrieve a single save by ID.
 
 ---
 
-### GET /saves/{id}/content
+### GET /api/saves/{id}/content
 
 Download a save file. The owner can download any of their saves. Other authenticated users can only download saves marked `is_public=true`.
 
@@ -160,14 +160,14 @@ Download a save file. The owner can download any of their saves. Other authentic
 <ParamField query="optimistic" type="boolean" default="true">When `true` and a device is provided, marks the save as synced on download.</ParamField>
 
 ```bash
-curl "http://localhost:8080/saves/10/content" \
+curl "http://localhost:8080/api/saves/10/content" \
   -H "Authorization: Bearer <token>" \
   -o save.sav
 ```
 
 ---
 
-### PUT /saves/{id}
+### PUT /api/saves/{id}
 
 Update a save file's content or replace its associated screenshot.
 
@@ -180,7 +180,7 @@ Update a save file's content or replace its associated screenshot.
 
 ---
 
-### PUT /saves/{id}/visibility
+### PUT /api/saves/{id}/visibility
 
 Toggle a save's public/private visibility. Owner only.
 
@@ -190,7 +190,7 @@ Toggle a save's public/private visibility. Owner only.
 <ParamField body="is_public" type="boolean" required>New visibility state.</ParamField>
 
 ```bash
-curl -X PUT http://localhost:8080/saves/10/visibility \
+curl -X PUT http://localhost:8080/api/saves/10/visibility \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"is_public": true}'
@@ -198,7 +198,7 @@ curl -X PUT http://localhost:8080/saves/10/visibility \
 
 ---
 
-### POST /saves/delete
+### POST /api/saves/delete
 
 Delete one or more saves and their associated screenshot files.
 
@@ -207,7 +207,7 @@ Delete one or more saves and their associated screenshot files.
 <ParamField body="saves" type="integer[]" required>List of save IDs to delete.</ParamField>
 
 ```bash
-curl -X POST http://localhost:8080/saves/delete \
+curl -X POST http://localhost:8080/api/saves/delete \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"saves": [10, 11]}'
@@ -217,7 +217,7 @@ curl -X POST http://localhost:8080/saves/delete \
 
 ---
 
-### POST /saves/{id}/downloaded
+### POST /api/saves/{id}/downloaded
 
 Confirm that a save was successfully downloaded by a device (non-optimistic sync confirmation).
 
@@ -228,7 +228,7 @@ Confirm that a save was successfully downloaded by a device (non-optimistic sync
 
 ---
 
-### POST /saves/{id}/track / POST /saves/{id}/untrack
+### POST /api/saves/{id}/track / POST /api/saves/{id}/untrack
 
 Enable or disable sync tracking for a save on a specific device.
 
@@ -243,7 +243,7 @@ Enable or disable sync tracking for a save on a specific device.
 
 Save states are full emulator memory snapshots. The States API mirrors the Saves API in structure but without slot or sync-conflict logic.
 
-### POST /states
+### POST /api/states
 
 Upload a save state for a ROM.
 
@@ -255,7 +255,7 @@ Upload a save state for a ROM.
 <ParamField body="screenshotFile" type="file">Optional screenshot.</ParamField>
 
 ```bash
-curl -X POST "http://localhost:8080/states?rom_id=42&emulator=mgba" \
+curl -X POST "http://localhost:8080/api/states?rom_id=42&emulator=mgba" \
   -H "Authorization: Bearer <token>" \
   -F "stateFile=@/path/to/state.state"
 ```
@@ -274,7 +274,7 @@ curl -X POST "http://localhost:8080/states?rom_id=42&emulator=mgba" \
 
 ---
 
-### GET /states
+### GET /api/states
 
 List save states for the current user.
 
@@ -285,47 +285,52 @@ List save states for the current user.
 
 ---
 
-### GET /states/identifiers
+### GET /api/states/identifiers
 
 Retrieve only the IDs of the current user's save states. **Required scope:** `assets.read`
 
 ---
 
-### GET /states/{id}
+### GET /api/states/{id}
 
 Retrieve a single save state by ID. **Required scope:** `assets.read`
 
 ---
 
-### GET /states/{id}/content
+### GET /api/states/{id}/content
 
 Download a save state file. Owner downloads any; others only download public states.
 
 **Required scope:** `assets.read`
 
 ```bash
-curl "http://localhost:8080/states/5/content" \
+curl "http://localhost:8080/api/states/5/content" \
   -H "Authorization: Bearer <token>" \
   -o game.state
 ```
 
 ---
 
-### PUT /states/{id}
+### PUT /api/states/{id}
 
 Update a save state's content or screenshot. **Required scope:** `assets.write`
 
+<ParamField path="id" type="integer" required>State internal ID.</ParamField>
+<ParamField body="stateFile" type="file">Replacement state file.</ParamField>
+<ParamField body="screenshotFile" type="file">Replacement screenshot.</ParamField>
+
 ---
 
-### PUT /states/{id}/visibility
+### PUT /api/states/{id}/visibility
 
 Toggle a state's public/private visibility (owner only). **Required scope:** `assets.write`
 
+<ParamField path="id" type="integer" required>State internal ID.</ParamField>
 <ParamField body="is_public" type="boolean" required>New visibility state.</ParamField>
 
 ---
 
-### POST /states/delete
+### POST /api/states/delete
 
 Delete one or more save states.
 
@@ -334,7 +339,7 @@ Delete one or more save states.
 <ParamField body="states" type="integer[]" required>List of state IDs to delete.</ParamField>
 
 ```bash
-curl -X POST http://localhost:8080/states/delete \
+curl -X POST http://localhost:8080/api/states/delete \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"states": [5, 6]}'

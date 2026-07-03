@@ -1,5 +1,5 @@
 ---
-title: "ROM Filename Tags and Naming Conventions"
+title: "ROM Filename Tag and Naming Convention Guide for RomM"
 sidebarTitle: "Tags & Naming"
 description: "Understand how RomM parses region codes, revision numbers, and special flags from ROM filenames to enable filtering and proper metadata matching."
 ---
@@ -34,6 +34,20 @@ Region codes in parentheses identify the market a ROM was released for. They aff
 | `(France)` | France |
 | `(Spain)` | Spain |
 | `(Italy)` | Italy |
+| `(Hong Kong)` | Hong Kong |
+| `(Taiwan)` | Taiwan |
+| `(Netherlands)` | Netherlands |
+| `(Finland)` | Finland |
+| `(Sweden)` | Sweden |
+| `(Norway)` | Norway |
+| `(Russia)` | Russia |
+| `(Greece)` | Greece |
+| `(Canada)` | Canada |
+| `(England)` | England |
+| `(Asia)` | Asia |
+| `(Public Domain)` | Public domain release |
+| `(Unlicensed)` | Unlicensed release (also parsed from the shortcode `UNL`) |
+| `(Unknown)` | Region unknown |
 
 Multiple regions can appear together, separated by commas within a single tag pair:
 
@@ -53,7 +67,6 @@ Revision and version tags identify dumps of a game that received post-release co
 | `(Proto)` | Prototype / unreleased build |
 | `(Demo)` | Playable demo |
 | `(Sample)` | Press / trade-show sample |
-| `(Unl)` | Unlicensed release |
 
 RomM stores revision values in the dedicated `revision` column and version values in the `version` column, allowing you to filter and sort your library by revision.
 

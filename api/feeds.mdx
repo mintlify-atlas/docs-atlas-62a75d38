@@ -12,7 +12,7 @@ RomM exposes read-only feed endpoints designed for compatible game frontend clie
 
 ---
 
-## GET /feeds/webrcade
+## GET /api/feeds/webrcade
 
 Generate a WebRcade-compatible feed from your library. Only platforms whose slug appears in WebRcade's supported platform list are included.
 
@@ -21,7 +21,7 @@ Generate a WebRcade-compatible feed from your library. Only platforms whose slug
 **Response format:** `application/json` — WebRcade feed schema
 
 ```bash
-curl http://localhost:8080/feeds/webrcade \
+curl http://localhost:8080/api/feeds/webrcade \
   -H "Authorization: Bearer <token>"
 ```
 
@@ -47,7 +47,7 @@ curl http://localhost:8080/feeds/webrcade \
           "type": "gba",
           "thumbnail": "http://your-romm/resources/...",
           "props": {
-            "rom": "http://your-romm/roms/15/files/content/SuperMarioWorld.gba"
+            "rom": "http://your-romm/api/roms/15/content/SuperMarioWorld.gba"
           }
         }
       ]
@@ -56,11 +56,13 @@ curl http://localhost:8080/feeds/webrcade \
 }
 ```
 
-Point WebRcade at `http://<your-romm>:8080/feeds/webrcade` as a custom feed URL. See the [WebRcade feed format docs](https://docs.webrcade.com/feeds/format/) for client setup.
+Supported platforms include: 3DO, Arcade, Atari 2600/5200/7800, Commodore 64, ColecoVision, DOS, Game Gear, Game Boy / Game Boy Color / Game Boy Advance, Sega Genesis, Atari Lynx, Nintendo 64, Neo Geo (AES/MVS/CD/Pocket/Pocket Color), NES, PC-FX, PlayStation (PSX), Sega CD, SG-1000, Sega Master System, SNES, SuperGrafx, TurboGrafx-16 / TurboGrafx-CD, Virtual Boy, WonderSwan / WonderSwan Color.
+
+Point WebRcade at `http://<your-romm>:8080/api/feeds/webrcade` as a custom feed URL. See the [WebRcade feed format docs](https://docs.webrcade.com/feeds/format/) for client setup.
 
 ---
 
-## GET /feeds/tinfoil
+## GET /api/feeds/tinfoil
 
 Generate a Tinfoil custom index feed for Nintendo Switch ROMs. Returns URLs for `.xci`, `.nsp`, `.nsz`, `.xcz`, and `.nro` files, plus a TitleDB block derived from filenames.
 
@@ -73,7 +75,7 @@ Generate a Tinfoil custom index feed for Nintendo Switch ROMs. Returns URLs for 
 **Response format:** `application/json` — Tinfoil custom index schema
 
 ```bash
-curl http://localhost:8080/feeds/tinfoil
+curl http://localhost:8080/api/feeds/tinfoil
 ```
 
 **Response:**
@@ -81,7 +83,7 @@ curl http://localhost:8080/feeds/tinfoil
 ```json
 {
   "files": [
-    { "url": "http://your-romm/roms/10/files/content/GameTitle.nsp", "size": 4294967296 }
+    { "url": "http://your-romm/api/roms/10/content/GameTitle.nsp", "size": 4294967296 }
   ],
   "directories": [],
   "success": "Welcome to your RomM library!",
@@ -91,11 +93,11 @@ curl http://localhost:8080/feeds/tinfoil
 }
 ```
 
-Add `http://<your-romm>:8080/feeds/tinfoil` as a custom shop URL in Tinfoil. See the [Tinfoil custom index docs](https://blawar.github.io/tinfoil/custom_index/) for setup.
+Add `http://<your-romm>:8080/api/feeds/tinfoil` as a custom shop URL in Tinfoil. See the [Tinfoil custom index docs](https://blawar.github.io/tinfoil/custom_index/) for setup.
 
 ---
 
-## GET /feeds/pkgi/ps3/{content_type}
+## GET /api/feeds/pkgi/ps3/{content_type}
 
 Generate a PKGi PS3-compatible database file for PlayStation 3 content.
 
@@ -108,7 +110,7 @@ Generate a PKGi PS3-compatible database file for PlayStation 3 content.
 </ParamField>
 
 ```bash
-curl "http://localhost:8080/feeds/pkgi/ps3/game" \
+curl "http://localhost:8080/api/feeds/pkgi/ps3/game" \
   -H "Authorization: Bearer <token>" \
   -o pkgi_game.txt
 ```
@@ -119,7 +121,7 @@ Configure [PKGi PS3](https://github.com/bucanero/pkgi-ps3) with the URL to this 
 
 ---
 
-## GET /feeds/pkgi/psvita/{content_type}
+## GET /api/feeds/pkgi/psvita/{content_type}
 
 Generate a PKGi PS Vita-compatible database file.
 
@@ -130,7 +132,7 @@ Generate a PKGi PS Vita-compatible database file.
 </ParamField>
 
 ```bash
-curl "http://localhost:8080/feeds/pkgi/psvita/game" \
+curl "http://localhost:8080/api/feeds/pkgi/psvita/game" \
   -H "Authorization: Bearer <token>" \
   -o pkgi_vita_game.txt
 ```
@@ -139,7 +141,7 @@ curl "http://localhost:8080/feeds/pkgi/psvita/game" \
 
 ---
 
-## GET /feeds/pkgi/psp/{content_type}
+## GET /api/feeds/pkgi/psp/{content_type}
 
 Generate a PKGi PSP-compatible database file for PlayStation Portable content.
 
@@ -150,7 +152,7 @@ Generate a PKGi PSP-compatible database file for PlayStation Portable content.
 </ParamField>
 
 ```bash
-curl "http://localhost:8080/feeds/pkgi/psp/game" \
+curl "http://localhost:8080/api/feeds/pkgi/psp/game" \
   -H "Authorization: Bearer <token>" \
   -o pkgi_psp_game.txt
 ```
@@ -159,7 +161,7 @@ curl "http://localhost:8080/feeds/pkgi/psp/game" \
 
 ---
 
-## GET /feeds/pkgj/psp/games
+## GET /api/feeds/pkgj/psp/games
 
 Generate a PKGj-format tab-separated games list for PSP.
 
@@ -168,7 +170,7 @@ Generate a PKGj-format tab-separated games list for PSP.
 **Response format:** `text/plain` — tab-separated with header row
 
 ```bash
-curl http://localhost:8080/feeds/pkgj/psp/games \
+curl http://localhost:8080/api/feeds/pkgj/psp/games \
   -H "Authorization: Bearer <token>" \
   -o pkgj_psp_games.txt
 ```
@@ -177,7 +179,7 @@ curl http://localhost:8080/feeds/pkgj/psp/games \
 
 ---
 
-## GET /feeds/pkgj/psp/dlc
+## GET /api/feeds/pkgj/psp/dlc
 
 Generate a PKGj tab-separated DLC list for PSP.
 
@@ -187,7 +189,7 @@ Generate a PKGj tab-separated DLC list for PSP.
 
 ---
 
-## GET /feeds/pkgj/psvita/games
+## GET /api/feeds/pkgj/psvita/games
 
 Generate a PKGj-format games list for PS Vita.
 
@@ -197,7 +199,7 @@ Generate a PKGj-format games list for PS Vita.
 
 ---
 
-## GET /feeds/pkgj/psvita/dlc
+## GET /api/feeds/pkgj/psvita/dlc
 
 Generate a PKGj DLC list for PS Vita.
 
@@ -207,7 +209,7 @@ Generate a PKGj DLC list for PS Vita.
 
 ---
 
-## GET /feeds/pkgj/psx/games
+## GET /api/feeds/pkgj/psx/games
 
 Generate a PKGj-format games list for PlayStation (PSX).
 
@@ -217,7 +219,7 @@ Generate a PKGj-format games list for PlayStation (PSX).
 
 ---
 
-## GET /feeds/fpkgi/{platform_slug}
+## GET /api/feeds/fpkgi/{platform_slug}
 
 Generate an FPKGi-compatible JSON feed for PS4 or PS5 content.
 
@@ -230,7 +232,7 @@ Generate an FPKGi-compatible JSON feed for PS4 or PS5 content.
 **Response format:** `application/json`
 
 ```bash
-curl "http://localhost:8080/feeds/fpkgi/ps4" \
+curl "http://localhost:8080/api/feeds/fpkgi/ps4" \
   -H "Authorization: Bearer <token>"
 ```
 
@@ -239,7 +241,7 @@ curl "http://localhost:8080/feeds/fpkgi/ps4" \
 ```json
 {
   "DATA": {
-    "http://your-romm/roms/50/files/content/GameTitle.pkg": {
+    "http://your-romm/api/roms/50/content/GameTitle.pkg": {
       "name": "Game Title",
       "size": 8589934592,
       "title_id": "ROMM00050",
@@ -257,7 +259,7 @@ Configure [FPKGi](https://github.com/ItsJokerZz/FPKGi) with the endpoint URL as 
 
 ---
 
-## GET /feeds/kekatsu/{platform_slug}
+## GET /api/feeds/kekatsu/{platform_slug}
 
 Generate a Kekatsu DS-compatible tab-separated database for Nintendo DS, GBA, or other portable platforms.
 
@@ -268,7 +270,7 @@ Generate a Kekatsu DS-compatible tab-separated database for Nintendo DS, GBA, or
 </ParamField>
 
 ```bash
-curl "http://localhost:8080/feeds/kekatsu/nds" \
+curl "http://localhost:8080/api/feeds/kekatsu/nds" \
   -H "Authorization: Bearer <token>" \
   -o kekatsu_nds.txt
 ```

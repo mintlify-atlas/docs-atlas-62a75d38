@@ -1,5 +1,5 @@
 ---
-title: "Troubleshooting Common RomM Issues"
+title: "Troubleshooting Common RomM Problems and Solutions"
 sidebarTitle: "Troubleshooting"
 description: "Diagnose and fix common RomM problems: scan failures, metadata not loading, database connection errors, permission issues, and emulator problems."
 ---
@@ -56,7 +56,7 @@ docker logs romm -f
   Check that the relevant provider API keys are set correctly in your environment:
   - `IGDB_CLIENT_ID` and `IGDB_CLIENT_SECRET` for IGDB
   - `SCREENSCRAPER_USER` and `SCREENSCRAPER_PASSWORD` for Screenscraper
-  - `MOBY_API_KEY` for MobyGames
+  - `MOBYGAMES_API_KEY` for MobyGames
   - `STEAMGRIDDB_API_KEY` for SteamGridDB
 
   Missing or incorrect credentials cause metadata fetches to fail silently for that provider.

@@ -10,7 +10,7 @@ Collections are user-curated groups of ROMs that span platform boundaries, letti
 
 ## Regular Collections
 
-### GET /collections
+### GET /api/collections
 
 Retrieve all collections visible to the current user. Public collections from other users are included; private collections belonging to other users are excluded.
 
@@ -21,7 +21,7 @@ Retrieve all collections visible to the current user. Public collections from ot
 </ParamField>
 
 ```bash
-curl http://localhost:8080/collections \
+curl http://localhost:8080/api/collections \
   -H "Authorization: Bearer <token>"
 ```
 
@@ -42,14 +42,14 @@ curl http://localhost:8080/collections \
 
 ---
 
-### GET /collections/identifiers
+### GET /api/collections/identifiers
 
 Retrieve only the IDs of collections the current user owns or that are public.
 
 **Required scope:** `collections.read`
 
 ```bash
-curl http://localhost:8080/collections/identifiers \
+curl http://localhost:8080/api/collections/identifiers \
   -H "Authorization: Bearer <token>"
 ```
 
@@ -57,7 +57,7 @@ curl http://localhost:8080/collections/identifiers \
 
 ---
 
-### POST /collections
+### POST /api/collections
 
 Create a new collection. Accepts `multipart/form-data` to allow cover artwork upload in the same request.
 
@@ -88,7 +88,7 @@ Create a new collection. Accepts `multipart/form-data` to allow cover artwork up
 </ParamField>
 
 ```bash
-curl -X POST http://localhost:8080/collections \
+curl -X POST http://localhost:8080/api/collections \
   -H "Authorization: Bearer <token>" \
   -F "name=My RPG Backlog" \
   -F "description=All the RPGs I need to finish" \
@@ -99,7 +99,7 @@ curl -X POST http://localhost:8080/collections \
 
 ---
 
-### GET /collections/{id}
+### GET /api/collections/{id}
 
 Retrieve a single collection by ID. Returns `403` if the collection is private and owned by another user.
 
@@ -110,13 +110,13 @@ Retrieve a single collection by ID. Returns `403` if the collection is private a
 </ParamField>
 
 ```bash
-curl http://localhost:8080/collections/5 \
+curl http://localhost:8080/api/collections/5 \
   -H "Authorization: Bearer <token>"
 ```
 
 ---
 
-### PUT /collections/{id}
+### PUT /api/collections/{id}
 
 Replace a collection's ROM list and update its metadata. The full `rom_ids` list is required and replaces the current list entirely.
 
@@ -140,7 +140,7 @@ Only the collection's owner can update it.
 <ParamField body="remove_cover" type="boolean">Set to `true` to remove the existing cover.</ParamField>
 
 ```bash
-curl -X PUT http://localhost:8080/collections/5 \
+curl -X PUT http://localhost:8080/api/collections/5 \
   -H "Authorization: Bearer <token>" \
   -F 'rom_ids=[1,2,3,42]' \
   -F "name=My RPG Backlog (Updated)"
@@ -148,7 +148,7 @@ curl -X PUT http://localhost:8080/collections/5 \
 
 ---
 
-### POST /collections/{id}/roms
+### POST /api/collections/{id}/roms
 
 Atomically add ROMs to a collection without replacing the full list.
 
@@ -163,7 +163,7 @@ Atomically add ROMs to a collection without replacing the full list.
 </ParamField>
 
 ```bash
-curl -X POST http://localhost:8080/collections/5/roms \
+curl -X POST http://localhost:8080/api/collections/5/roms \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"rom_ids": [55, 56, 57]}'
@@ -171,7 +171,7 @@ curl -X POST http://localhost:8080/collections/5/roms \
 
 ---
 
-### DELETE /collections/{id}/roms
+### DELETE /api/collections/{id}/roms
 
 Atomically remove ROMs from a collection without replacing the full list.
 
@@ -186,7 +186,7 @@ Atomically remove ROMs from a collection without replacing the full list.
 </ParamField>
 
 ```bash
-curl -X DELETE http://localhost:8080/collections/5/roms \
+curl -X DELETE http://localhost:8080/api/collections/5/roms \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"rom_ids": [55]}'
@@ -194,7 +194,7 @@ curl -X DELETE http://localhost:8080/collections/5/roms \
 
 ---
 
-### DELETE /collections/{id}
+### DELETE /api/collections/{id}
 
 Delete a collection. Only the collection's owner can delete it.
 
@@ -205,7 +205,7 @@ Delete a collection. Only the collection's owner can delete it.
 </ParamField>
 
 ```bash
-curl -X DELETE http://localhost:8080/collections/5 \
+curl -X DELETE http://localhost:8080/api/collections/5 \
   -H "Authorization: Bearer <token>"
 ```
 
@@ -217,7 +217,7 @@ curl -X DELETE http://localhost:8080/collections/5 \
 
 Smart collections are filter-driven: RomM evaluates their `filter_criteria` against the library and keeps the ROM list up to date automatically.
 
-### POST /collections/smart
+### POST /api/collections/smart
 
 Create a new smart collection.
 
@@ -234,17 +234,17 @@ Create a new smart collection.
 </ParamField>
 
 <ParamField body="filter_criteria" type="string" required>
-  JSON string of filter criteria (same filter keys as `GET /roms`). Example: `'{"genres": ["RPG"], "genres_logic": "any"}'`
+  JSON string of filter criteria (same filter keys as `GET /api/roms`). Example: `'{"genres": ["RPG"], "genres_logic": "any"}'`
 </ParamField>
 
 ```bash
-curl -X POST http://localhost:8080/collections/smart \
+curl -X POST http://localhost:8080/api/collections/smart \
   -H "Authorization: Bearer <token>" \
   -F "name=All RPGs" \
   -F 'filter_criteria={"genres":["RPG"]}'
 ```
 
-### GET /collections/smart
+### GET /api/collections/smart
 
 Retrieve all smart collections for the current user, plus public ones from other users.
 
@@ -252,19 +252,19 @@ Retrieve all smart collections for the current user, plus public ones from other
 
 <ParamField query="updated_after" type="string">ISO 8601 datetime filter.</ParamField>
 
-### GET /collections/smart/identifiers
+### GET /api/collections/smart/identifiers
 
 Retrieve smart collection IDs. **Required scope:** `collections.read`
 
-### GET /collections/smart/{id}
+### GET /api/collections/smart/{id}
 
 Retrieve a single smart collection by ID. **Required scope:** `collections.read`
 
-### PUT /collections/smart/{id}
+### PUT /api/collections/smart/{id}
 
 Update a smart collection's name, description, visibility, or filter criteria. **Required scope:** `collections.write`
 
-### DELETE /collections/smart/{id}
+### DELETE /api/collections/smart/{id}
 
 Delete a smart collection. **Required scope:** `collections.write`
 
@@ -274,7 +274,9 @@ Delete a smart collection. **Required scope:** `collections.write`
 
 Virtual collections are system-generated groupings (e.g. by genre, franchise, or company) and are read-only.
 
-### GET /collections/virtual
+### GET /api/collections/virtual
+
+**Required scope:** `collections.read`
 
 <ParamField query="type" type="string" required>
   The virtual collection type to retrieve (e.g. `genre`, `franchise`, `company`).
@@ -284,10 +286,10 @@ Virtual collections are system-generated groupings (e.g. by genre, franchise, or
   Maximum number of virtual collections to return.
 </ParamField>
 
-### GET /collections/virtual/identifiers
+### GET /api/collections/virtual/identifiers
 
-Retrieve virtual collection IDs for a given type.
+Retrieve virtual collection IDs for a given type. **Required scope:** `collections.read`
 
-### GET /collections/virtual/{id}
+### GET /api/collections/virtual/{id}
 
-Retrieve a single virtual collection by its generated string ID.
+Retrieve a single virtual collection by its generated string ID. **Required scope:** `collections.read`

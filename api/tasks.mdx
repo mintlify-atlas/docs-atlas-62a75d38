@@ -12,14 +12,14 @@ RomM uses a Redis-backed RQ (Redis Queue) task queue to run background operation
 
 ---
 
-## GET /tasks
+## GET /api/tasks
 
 List all available tasks grouped by type (scheduled, manual, and watcher). Returns task metadata — name, title, description, enabled status, and cron schedule — but not execution history.
 
 **Required scope:** `tasks.run`
 
 ```bash
-curl http://localhost:8080/tasks \
+curl http://localhost:8080/api/tasks \
   -H "Authorization: Bearer <token>"
 ```
 
@@ -61,7 +61,7 @@ curl http://localhost:8080/tasks \
 ```
 
 <ResponseField name="name" type="string">
-  Machine-readable task identifier used when triggering via `POST /tasks/run/{task_name}`.
+  Machine-readable task identifier used when triggering via `POST /api/tasks/run/{task_name}`.
 </ResponseField>
 
 <ResponseField name="type" type="string">
@@ -122,14 +122,14 @@ These must be triggered explicitly and do not run on a schedule:
 
 ---
 
-## GET /tasks/status
+## GET /api/tasks/status
 
 Get all active, queued, completed, and failed task jobs from all three priority queues.
 
 **Required scope:** `tasks.run`
 
 ```bash
-curl http://localhost:8080/tasks/status \
+curl http://localhost:8080/api/tasks/status \
   -H "Authorization: Bearer <token>"
 ```
 
@@ -140,7 +140,7 @@ curl http://localhost:8080/tasks/status \
 </ResponseField>
 
 <ResponseField name="task_id" type="string">
-  Unique RQ job ID. Use this to query a specific job via `GET /tasks/{task_id}`.
+  Unique RQ job ID. Use this to query a specific job via `GET /api/tasks/{task_id}`.
 </ResponseField>
 
 <ResponseField name="task_type" type="string">
@@ -167,18 +167,18 @@ curl http://localhost:8080/tasks/status \
 
 ---
 
-## GET /tasks/{task_id}
+## GET /api/tasks/{task_id}
 
 Retrieve the status of a specific task by its RQ job ID.
 
 **Required scope:** `tasks.run`
 
 <ParamField path="task_id" type="string" required>
-  The RQ job ID returned when the task was enqueued (from `POST /tasks/run/{task_name}`).
+  The RQ job ID returned when the task was enqueued (from `POST /api/tasks/run/{task_name}`).
 </ParamField>
 
 ```bash
-curl http://localhost:8080/tasks/abc123-def456 \
+curl http://localhost:8080/api/tasks/abc123-def456 \
   -H "Authorization: Bearer <token>"
 ```
 
@@ -190,7 +190,7 @@ curl http://localhost:8080/tasks/abc123-def456 \
 
 ---
 
-## POST /tasks/run/{task_name}
+## POST /api/tasks/run/{task_name}
 
 Enqueue a task for immediate execution. Only tasks with `enabled: true` and `manual_run: true` can be triggered.
 
@@ -206,11 +206,11 @@ Enqueue a task for immediate execution. Only tasks with `enabled: true` and `man
 
 ```bash
 # Trigger a library scan
-curl -X POST http://localhost:8080/tasks/run/scan_library \
+curl -X POST http://localhost:8080/api/tasks/run/scan_library \
   -H "Authorization: Bearer <token>"
 
 # Trigger a scan with optional kwargs
-curl -X POST http://localhost:8080/tasks/run/scan_library \
+curl -X POST http://localhost:8080/api/tasks/run/scan_library \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"platforms": ["gba", "n64"]}'
@@ -228,7 +228,7 @@ curl -X POST http://localhost:8080/tasks/run/scan_library \
 }
 ```
 
-Use the returned `task_id` to poll `GET /tasks/{task_id}` for progress, or stream real-time progress via the `/ws` WebSocket endpoint.
+Use the returned `task_id` to poll `GET /api/tasks/{task_id}` for progress, or stream real-time progress via the `/ws` WebSocket endpoint.
 
 <Warning>
   Tasks run in the background worker process. If no worker is running, jobs will remain `queued` indefinitely. Ensure the RomM worker container is up when triggering tasks.

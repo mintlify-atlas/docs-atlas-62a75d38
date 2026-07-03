@@ -1,5 +1,5 @@
 ---
-title: "Authentication, Users, and Roles in RomM"
+title: "User Authentication, Roles, and API Tokens in RomM"
 sidebarTitle: "Authentication"
 description: "Configure user accounts, roles, and API authentication in RomM. Covers session login, OAuth2 tokens, client API tokens, and role-based access control."
 ---
@@ -92,7 +92,7 @@ On first boot, if no admin user exists, RomM shows a setup wizard that lets you 
 The session login endpoint uses **HTTP Basic Auth**:
 
 ```bash
-POST /login
+POST /api/login
 Authorization: Basic <base64(username:password)>
 ```
 
@@ -108,7 +108,7 @@ SESSION_MAX_AGE_SECONDS=1209600
 
 ### Logout
 
-`POST /logout` clears the session. If OIDC RP-initiated logout is enabled and the session contains an OIDC `id_token`, the response includes an `oidc_logout_url` field your client should redirect the browser to in order to also end the session at the identity provider.
+`POST /api/logout` clears the session. If OIDC RP-initiated logout is enabled and the session contains an OIDC `id_token`, the response includes an `oidc_logout_url` field your client should redirect the browser to in order to also end the session at the identity provider.
 
 ---
 
@@ -118,17 +118,17 @@ For API clients and automation, RomM implements an **OAuth2 password grant** flo
 
 ### Obtaining Tokens
 
-Send a `POST` request to `/token` with form-encoded credentials:
+Send a `POST` request to `/api/token` with form-encoded credentials:
 
 ```bash
-curl -X POST http://localhost:8080/token \
+curl -X POST http://localhost:8080/api/token \
   -d 'grant_type=password&username=admin&password=yourpassword'
 ```
 
 To request a specific subset of scopes, include the `scope` field (space-separated):
 
 ```bash
-curl -X POST http://localhost:8080/token \
+curl -X POST http://localhost:8080/api/token \
   -d 'grant_type=password&username=admin&password=yourpassword&scope=roms.read platforms.read'
 ```
 
@@ -174,7 +174,7 @@ curl http://localhost:8080/api/roms \
 When the access token expires, use the refresh token to obtain a new pair without re-entering credentials:
 
 ```bash
-curl -X POST http://localhost:8080/token \
+curl -X POST http://localhost:8080/api/token \
   -d 'grant_type=refresh_token&refresh_token=<your_refresh_token>'
 ```
 
@@ -252,8 +252,8 @@ logs.read
 ### Limits and Management
 
 - Each user can hold a maximum of **25 client tokens**.
-- Tokens can be listed (`GET /api/client-tokens`), deleted (`DELETE /api/client-tokens/{id}`), and regenerated (`PUT /api/client-tokens/{id}/regenerate`) at any time.
-- Admins can list and delete any user's tokens via `GET /api/client-tokens/all` and `DELETE /api/client-tokens/{id}/admin`.
+- Tokens can be listed (`GET /api/client-tokens`), deleted (`DELETE /api/client-tokens/{token_id}`), and regenerated (`PUT /api/client-tokens/{token_id}/regenerate`) at any time.
+- Admins can list and delete any user's tokens via `GET /api/client-tokens/all` and `DELETE /api/client-tokens/{token_id}/admin`.
 
 ### Token Pairing (Device Flow)
 
@@ -303,7 +303,7 @@ The exchange endpoint is rate-limited to **5 attempts per 60 seconds** per IP ad
 DISABLE_USERPASS_LOGIN=true
 ```
 
-Prevents users from logging in with a username and password. Use this together with OIDC to enforce SSO-only access. The `/token` and `/login` endpoints will reject all password-based requests.
+Prevents users from logging in with a username and password. Use this together with OIDC to enforce SSO-only access. The `/api/token` and `/api/login` endpoints will reject all password-based requests.
 
 ### Disable Download Endpoint Authentication
 
@@ -343,7 +343,7 @@ By default, RomM shows a first-boot wizard when no admin account exists. Set `DI
 
 ### Password Reset
 
-Users can request a password reset link via `POST /forgot-password` (body: `{"username": "..."}`) and then submit the token they receive via `POST /reset-password` (body: `{"token": "...", "new_password": "..."}`). The reset flow is independent of OIDC — it always operates on the local password.
+Users can request a password reset link via `POST /api/forgot-password` (body: `{"username": "..."}`) and then submit the token they receive via `POST /api/reset-password` (body: `{"token": "...", "new_password": "..."}`). The reset flow is independent of OIDC — it always operates on the local password.
 
 ### Invite Links
 

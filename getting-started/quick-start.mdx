@@ -1,7 +1,7 @@
 ---
 title: "Get Started with RomM in Minutes"
 sidebarTitle: "Quick Start"
-description: "Deploy RomM using Docker Compose, configure your database, mount your ROM library, and scan your first games in under 10 minutes."
+description: "Deploy RomM using Docker Compose, configure your database and environment variables, mount your ROM library, and scan your first games in minutes."
 ---
 
 RomM is a self-hosted ROM manager and player that runs entirely in Docker. It gives you a clean web interface to scan, enrich, browse, and play your game collection — with metadata pulled from IGDB, Screenscraper, MobyGames, and more. This guide walks you through standing up a fully functional instance from scratch.
@@ -162,7 +162,7 @@ services:
     RomM will present a first-boot setup wizard. Use it to create your **admin user account** — set a strong username and password, as this account has full access to the instance including library management, user administration, and all scan operations.
 
     <Note>
-      The setup wizard only runs once. If you need to reset it (for example, after a fresh database), you can set `DISABLE_SETUP_WIZARD=false` in your environment and restart the container. To skip the wizard entirely on purpose, set `DISABLE_SETUP_WIZARD=true` before the first boot.
+      The setup wizard runs automatically on first boot whenever no admin account exists — for example, after a fresh database. To skip the wizard entirely, set `DISABLE_SETUP_WIZARD=true` in your environment before starting the container.
     </Note>
 
     After creating your admin account you will land on the main library view. Trigger your first scan from **Settings → Scan** to have RomM walk your mounted library, detect platforms, and pull metadata for every game it finds.

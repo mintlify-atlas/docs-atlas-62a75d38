@@ -4,7 +4,7 @@ sidebarTitle: "Users"
 description: "REST endpoints for managing user accounts, roles, and invitations in RomM. Admin-only operations for user creation and role assignment."
 ---
 
-The Users API provides control over user accounts in RomM. Most endpoints require admin-level access — creating users, changing roles, and generating invite links are restricted to users with the `users.write` scope. Every user can read and update their own profile via the `/users/me` and `/users/{id}` endpoints.
+The Users API provides control over user accounts in RomM. Most endpoints require admin-level access — creating users, changing roles, and generating invite links are restricted to users with the `users.write` scope. Every user can read and update their own profile via the `/api/users/me` and `/api/users/{id}` endpoints.
 
 ---
 
@@ -23,14 +23,14 @@ RomM uses a two-tier role model:
 
 ---
 
-## GET /users
+## GET /api/users
 
 Retrieve all user accounts. Admin-only.
 
 **Required scope:** `users.read`
 
 ```bash
-curl http://localhost:8080/users \
+curl http://localhost:8080/api/users \
   -H "Authorization: Bearer <token>"
 ```
 
@@ -47,19 +47,21 @@ curl http://localhost:8080/users \
 <ResponseField name="last_login" type="string | null">ISO 8601 last login timestamp (UTC).</ResponseField>
 <ResponseField name="last_active" type="string | null">ISO 8601 last activity timestamp (UTC).</ResponseField>
 <ResponseField name="ra_username" type="string | null">Linked RetroAchievements username.</ResponseField>
+<ResponseField name="ra_progression" type="object | null">RetroAchievements progression data.</ResponseField>
+<ResponseField name="ui_settings" type="object | null">User UI preference settings.</ResponseField>
 <ResponseField name="created_at" type="string">ISO 8601 creation timestamp.</ResponseField>
 <ResponseField name="updated_at" type="string">ISO 8601 last-updated timestamp.</ResponseField>
 
 ---
 
-## GET /users/identifiers
+## GET /api/users/identifiers
 
 Retrieve only the IDs of all user accounts.
 
 **Required scope:** `users.read`
 
 ```bash
-curl http://localhost:8080/users/identifiers \
+curl http://localhost:8080/api/users/identifiers \
   -H "Authorization: Bearer <token>"
 ```
 
@@ -67,14 +69,14 @@ curl http://localhost:8080/users/identifiers \
 
 ---
 
-## GET /users/me
+## GET /api/users/me
 
 Retrieve the currently authenticated user's profile. Also returns the current `device_id` if a device session is active.
 
 **Required scope:** `me.read`
 
 ```bash
-curl http://localhost:8080/users/me \
+curl http://localhost:8080/api/users/me \
   -H "Authorization: Bearer <token>"
 ```
 
@@ -82,7 +84,7 @@ curl http://localhost:8080/users/me \
 
 ---
 
-## GET /users/{id}
+## GET /api/users/{id}
 
 Retrieve a single user by internal ID.
 
@@ -93,7 +95,7 @@ Retrieve a single user by internal ID.
 </ParamField>
 
 ```bash
-curl http://localhost:8080/users/2 \
+curl http://localhost:8080/api/users/2 \
   -H "Authorization: Bearer <token>"
 ```
 
@@ -101,7 +103,7 @@ curl http://localhost:8080/users/2 \
 
 ---
 
-## GET /users/{id}/avatar
+## GET /api/users/{id}/avatar
 
 Serve a user's avatar image. Any authenticated user can fetch any other user's avatar (avatars are considered public within an authenticated session).
 
@@ -112,14 +114,14 @@ Serve a user's avatar image. Any authenticated user can fetch any other user's a
 </ParamField>
 
 ```bash
-curl http://localhost:8080/users/2/avatar \
+curl http://localhost:8080/api/users/2/avatar \
   -H "Authorization: Bearer <token>" \
   -o avatar.jpg
 ```
 
 ---
 
-## POST /users
+## POST /api/users
 
 Create a new user account. Requires admin privileges (the `users.write` scope) when admin users already exist. During initial setup (no admins exist yet) this endpoint is open.
 
@@ -142,7 +144,7 @@ Create a new user account. Requires admin privileges (the `users.write` scope) w
 </ParamField>
 
 ```bash
-curl -X POST http://localhost:8080/users \
+curl -X POST http://localhost:8080/api/users \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"username": "alice", "email": "alice@example.com", "password": "s3cr3t", "role": "user"}'
@@ -152,7 +154,7 @@ curl -X POST http://localhost:8080/users \
 
 ---
 
-## PUT /users/{id}
+## PUT /api/users/{id}
 
 Update a user account. Accepts `multipart/form-data` so that a new avatar can be uploaded in the same request.
 
@@ -176,7 +178,7 @@ Admins can update any user. Non-admin users can only update themselves.
 </Expandable>
 
 ```bash
-curl -X PUT http://localhost:8080/users/2 \
+curl -X PUT http://localhost:8080/api/users/2 \
   -H "Authorization: Bearer <token>" \
   -F "ra_username=myRAuser" \
   -F "avatar=@/path/to/avatar.png"
@@ -188,7 +190,7 @@ curl -X PUT http://localhost:8080/users/2 \
 
 ---
 
-## DELETE /users/{id}
+## DELETE /api/users/{id}
 
 Delete a user account. Removes the user's avatar directory from disk.
 
@@ -199,7 +201,7 @@ Delete a user account. Removes the user's avatar directory from disk.
 </ParamField>
 
 ```bash
-curl -X DELETE http://localhost:8080/users/2 \
+curl -X DELETE http://localhost:8080/api/users/2 \
   -H "Authorization: Bearer <token>"
 ```
 
@@ -212,7 +214,7 @@ curl -X DELETE http://localhost:8080/users/2 \
 
 ---
 
-## POST /users/invite-link
+## POST /api/users/invite-link
 
 Generate an invite link token that allows someone to self-register with a pre-assigned role. Only admins can generate admin invite links.
 
@@ -227,7 +229,7 @@ Generate an invite link token that allows someone to self-register with a pre-as
 </ParamField>
 
 ```bash
-curl -X POST "http://localhost:8080/users/invite-link?role=user&expiration=86400" \
+curl -X POST "http://localhost:8080/api/users/invite-link?role=user&expiration=86400" \
   -H "Authorization: Bearer <token>"
 ```
 
@@ -237,11 +239,11 @@ curl -X POST "http://localhost:8080/users/invite-link?role=user&expiration=86400
 { "token": "<invite_jwt>" }
 ```
 
-Share the token with the invitee. They register via `POST /users/register`.
+Share the token with the invitee. They register via `POST /api/users/register`.
 
 ---
 
-## POST /users/register
+## POST /api/users/register
 
 Self-register using an invite link token. No authentication required.
 
@@ -251,7 +253,7 @@ Self-register using an invite link token. No authentication required.
 <ParamField body="token" type="string" required>Invite token received from an admin.</ParamField>
 
 ```bash
-curl -X POST http://localhost:8080/users/register \
+curl -X POST http://localhost:8080/api/users/register \
   -H "Content-Type: application/json" \
   -d '{"username": "bob", "email": "bob@example.com", "password": "hunter2", "token": "<invite_jwt>"}'
 ```
@@ -260,7 +262,7 @@ curl -X POST http://localhost:8080/users/register \
 
 ---
 
-## POST /users/{id}/ra/refresh
+## POST /api/users/{id}/ra/refresh
 
 Refresh RetroAchievements progression data for a user. Requires the user to have `ra_username` set.
 
@@ -275,7 +277,7 @@ Refresh RetroAchievements progression data for a user. Requires the user to have
 </ParamField>
 
 ```bash
-curl -X POST http://localhost:8080/users/1/ra/refresh \
+curl -X POST http://localhost:8080/api/users/1/ra/refresh \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"incremental": true}'

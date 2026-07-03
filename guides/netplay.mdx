@@ -1,7 +1,7 @@
 ---
-title: "Real-Time Multiplayer Netplay in RomM"
+title: "Netplay in RomM: WebRTC Multiplayer for Retro Games"
 sidebarTitle: "Netplay"
-description: "Set up peer-to-peer netplay rooms in RomM to play retro games online with friends. Configure ICE servers and manage active rooms."
+description: "Set up peer-to-peer netplay rooms in RomM to play retro games online with friends. Configure ICE servers and manage active rooms via the API."
 ---
 
 RomM's netplay feature lets you play retro games online with friends in real time. It uses WebRTC for peer-to-peer game data exchange, with RomM's own Socket.IO server acting as the **signaling layer** that helps players find each other and establish direct connections.
@@ -64,9 +64,6 @@ emulatorjs:
     ice_servers:
       - urls: "stun:stun.relay.metered.ca:80"
       - urls: "turn:global.relay.metered.ca:80"
-        username: "<username>"
-        credential: "<password>"
-      - urls: "turns:global.relay.metered.ca:443"
         username: "<username>"
         credential: "<password>"
 ```
@@ -157,6 +154,7 @@ EmulatorJS player exchanges with RomM's netplay server.
 | `leave-room` | Client → Server | Voluntarily leave the current room |
 | `users-updated` | Server → Room | Broadcast updated player list to all room members |
 | `webrtc-signal` | Client ↔ Server ↔ Client | Relay ICE candidates, SDP offers, and SDP answers |
+| `webrtc-signal-error` | Client → Server | Report a WebRTC signaling error (no-op on server) |
 | `data-message` | Client → Room | Broadcast arbitrary game data to all other players |
 | `snapshot` | Client → Room | Broadcast a game state snapshot |
 | `input` | Client → Room | Broadcast controller input to all other players |

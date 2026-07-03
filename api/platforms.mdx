@@ -8,7 +8,7 @@ The Platforms API lets you query and manage the gaming platforms in your RomM li
 
 ---
 
-## GET /platforms
+## GET /api/platforms
 
 Retrieve all platforms visible to the authenticated user.
 
@@ -19,7 +19,7 @@ Retrieve all platforms visible to the authenticated user.
 </ParamField>
 
 ```bash
-curl http://localhost:8080/platforms \
+curl http://localhost:8080/api/platforms \
   -H "Authorization: Bearer <token>"
 ```
 
@@ -61,8 +61,20 @@ curl http://localhost:8080/platforms \
   IGDB platform ID.
 </ResponseField>
 
+<ResponseField name="igdb_slug" type="string | null">
+  IGDB platform slug.
+</ResponseField>
+
+<ResponseField name="sgdb_id" type="integer | null">
+  SteamGridDB platform ID.
+</ResponseField>
+
 <ResponseField name="moby_id" type="integer | null">
   MobyGames platform ID.
+</ResponseField>
+
+<ResponseField name="moby_slug" type="string | null">
+  MobyGames platform slug.
 </ResponseField>
 
 <ResponseField name="ss_id" type="integer | null">
@@ -73,6 +85,30 @@ curl http://localhost:8080/platforms \
   RetroAchievements platform ID.
 </ResponseField>
 
+<ResponseField name="launchbox_id" type="integer | null">
+  LaunchBox platform ID.
+</ResponseField>
+
+<ResponseField name="hasheous_id" type="integer | null">
+  Hasheous platform ID.
+</ResponseField>
+
+<ResponseField name="tgdb_id" type="integer | null">
+  TheGamesDB platform ID.
+</ResponseField>
+
+<ResponseField name="flashpoint_id" type="integer | null">
+  Flashpoint platform ID.
+</ResponseField>
+
+<ResponseField name="hltb_slug" type="string | null">
+  HowLongToBeat platform slug.
+</ResponseField>
+
+<ResponseField name="libretro_slug" type="string | null">
+  Libretro platform slug.
+</ResponseField>
+
 <ResponseField name="category" type="string | null">
   Platform category (e.g. `console`, `portable`, `computer`).
 </ResponseField>
@@ -81,8 +117,28 @@ curl http://localhost:8080/platforms \
   Console generation number.
 </ResponseField>
 
+<ResponseField name="family_name" type="string | null">
+  Platform family name (e.g. `Nintendo`).
+</ResponseField>
+
+<ResponseField name="family_slug" type="string | null">
+  Platform family slug.
+</ResponseField>
+
+<ResponseField name="url" type="string | null">
+  URL to the platform's official page.
+</ResponseField>
+
+<ResponseField name="url_logo" type="string | null">
+  URL to the platform logo image.
+</ResponseField>
+
 <ResponseField name="firmware" type="array">
   List of firmware files associated with this platform.
+</ResponseField>
+
+<ResponseField name="firmware_count" type="integer">
+  Number of firmware files associated with this platform.
 </ResponseField>
 
 <ResponseField name="is_unidentified" type="boolean">
@@ -107,14 +163,14 @@ curl http://localhost:8080/platforms \
 
 ---
 
-## GET /platforms/identifiers
+## GET /api/platforms/identifiers
 
 Retrieve just the IDs of all visible platforms. Useful for sync clients that want a lightweight list to diff against.
 
 **Required scope:** `platforms.read`
 
 ```bash
-curl http://localhost:8080/platforms/identifiers \
+curl http://localhost:8080/api/platforms/identifiers \
   -H "Authorization: Bearer <token>"
 ```
 
@@ -122,20 +178,20 @@ curl http://localhost:8080/platforms/identifiers \
 
 ---
 
-## GET /platforms/supported
+## GET /api/platforms/supported
 
 Retrieve the full list of platforms that RomM supports (slug → name mapping). This list is static and does not reflect what is in your library.
 
 **Required scope:** `platforms.read`
 
 ```bash
-curl http://localhost:8080/platforms/supported \
+curl http://localhost:8080/api/platforms/supported \
   -H "Authorization: Bearer <token>"
 ```
 
 ---
 
-## POST /platforms
+## POST /api/platforms
 
 Add a new platform to the library. RomM creates the platform folder on disk (if it doesn't already exist) and immediately scans it.
 
@@ -146,7 +202,7 @@ Add a new platform to the library. RomM creates the platform folder on disk (if 
 </ParamField>
 
 ```bash
-curl -X POST http://localhost:8080/platforms \
+curl -X POST http://localhost:8080/api/platforms \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"fs_slug": "gba"}'
@@ -156,7 +212,7 @@ curl -X POST http://localhost:8080/platforms \
 
 ---
 
-## GET /platforms/{id}
+## GET /api/platforms/{id}
 
 Retrieve a single platform by its internal ID.
 
@@ -167,7 +223,7 @@ Retrieve a single platform by its internal ID.
 </ParamField>
 
 ```bash
-curl http://localhost:8080/platforms/3 \
+curl http://localhost:8080/api/platforms/3 \
   -H "Authorization: Bearer <token>"
 ```
 
@@ -175,7 +231,7 @@ curl http://localhost:8080/platforms/3 \
 
 ---
 
-## PUT /platforms/{id}
+## PUT /api/platforms/{id}
 
 Update a platform's custom display name.
 
@@ -190,7 +246,7 @@ Update a platform's custom display name.
 </ParamField>
 
 ```bash
-curl -X PUT http://localhost:8080/platforms/3 \
+curl -X PUT http://localhost:8080/api/platforms/3 \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"custom_name": "Game Boy Advance (My Library)"}'
@@ -200,7 +256,7 @@ curl -X PUT http://localhost:8080/platforms/3 \
 
 ---
 
-## DELETE /platforms/{id}
+## DELETE /api/platforms/{id}
 
 Delete a platform and all of its associated ROM records from the database. This does **not** delete files from disk.
 
@@ -211,7 +267,7 @@ Delete a platform and all of its associated ROM records from the database. This 
 </ParamField>
 
 ```bash
-curl -X DELETE http://localhost:8080/platforms/3 \
+curl -X DELETE http://localhost:8080/api/platforms/3 \
   -H "Authorization: Bearer <token>"
 ```
 

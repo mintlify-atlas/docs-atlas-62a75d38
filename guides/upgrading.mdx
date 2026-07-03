@@ -1,7 +1,7 @@
 ---
-title: "Upgrading RomM to a New Version"
+title: "Upgrading RomM to a Newer Version Without Data Loss"
 sidebarTitle: "Upgrading"
-description: "Safely upgrade your RomM Docker container to a new version, handle database migrations, and roll back if needed."
+description: "Safely upgrade your RomM Docker container to a newer version, handle automatic database migrations, and roll back to a previous version if needed."
 ---
 
 RomM uses [Alembic](https://alembic.sqlalchemy.org/) for automatic database schema migrations. In most cases, upgrading is a straightforward pull-and-restart operation — RomM applies any pending migrations automatically on startup, with no manual SQL required. Following the steps below ensures you have a safe rollback path if anything goes wrong.

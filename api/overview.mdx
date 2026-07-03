@@ -16,6 +16,8 @@ http://<your-romm-host>:8080
 
 If you mapped port 80 in your Compose file the base URL becomes `http://<your-romm-host>`.
 
+All API endpoints are prefixed with `/api`. For example, the platforms list endpoint is `/api/platforms`.
+
 ## Interactive API Docs
 
 FastAPI auto-generates two documentation UIs from the OpenAPI schema:
@@ -35,7 +37,7 @@ See the [Authentication guide](/api/authentication) for full details including t
 
 ## Pagination
 
-Most list endpoints (`GET /roms`, `GET /platforms`, etc.) use limit/offset pagination with the following query parameters:
+Most list endpoints (`GET /api/roms`, `GET /api/platforms`, etc.) use limit/offset pagination with the following query parameters:
 
 <ParamField query="limit" type="integer" default="50">
   Maximum number of items to return per page. Maximum is 10 000 for ROMs.
@@ -99,7 +101,7 @@ Two WebSocket endpoints are available for real-time communication:
 | Endpoint | Purpose |
 |---|---|
 | `/ws` | Scan progress updates and server log streaming |
-| `/ws/netplay` | Netplay room coordination between browser clients |
+| `/netplay` | Netplay room coordination between browser clients |
 
 ## Endpoint Reference
 

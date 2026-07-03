@@ -10,7 +10,7 @@ The RomM API supports four authentication methods. OAuth2 bearer tokens are reco
 
 Exchange a username and password for a short-lived access token and a longer-lived refresh token.
 
-**Endpoint:** `POST /token`
+**Endpoint:** `POST /api/token`
 
 The request body must be `application/x-www-form-urlencoded` (standard OAuth2 form encoding).
 
@@ -31,7 +31,7 @@ The request body must be `application/x-www-form-urlencoded` (standard OAuth2 fo
 </ParamField>
 
 ```bash
-curl -X POST http://localhost:8080/token \
+curl -X POST http://localhost:8080/api/token \
   --data 'grant_type=password&username=admin&password=yourpassword'
 ```
 
@@ -72,7 +72,7 @@ curl -X POST http://localhost:8080/token \
 Include the access token in the `Authorization` header of every authenticated request:
 
 ```bash
-curl http://localhost:8080/platforms \
+curl http://localhost:8080/api/platforms \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -82,10 +82,10 @@ curl http://localhost:8080/platforms \
 
 When the access token expires, use the refresh token to obtain a new pair without re-entering credentials.
 
-**Endpoint:** `POST /token`
+**Endpoint:** `POST /api/token`
 
 ```bash
-curl -X POST http://localhost:8080/token \
+curl -X POST http://localhost:8080/api/token \
   --data 'grant_type=refresh_token&refresh_token=<your_refresh_token>'
 ```
 
@@ -99,12 +99,12 @@ Client tokens are long-lived, named API keys that are stored hashed server-side 
 
 ### Create a Client Token
 
-**Endpoint:** `POST /client-tokens`
+**Endpoint:** `POST /api/client-tokens`
 
 Requires the `me.write` scope (i.e., the creating user must be authenticated).
 
 ```bash
-curl -X POST http://localhost:8080/client-tokens \
+curl -X POST http://localhost:8080/api/client-tokens \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{"name": "my-script", "scopes": ["roms.read", "platforms.read"]}'
@@ -136,7 +136,7 @@ curl -X POST http://localhost:8080/client-tokens \
 ```
 
 <Warning>
-  The raw token value is only returned at creation time. Store it immediately — it cannot be retrieved again. You can regenerate it via `PUT /client-tokens/{token_id}/regenerate`.
+  The raw token value is only returned at creation time. Store it immediately — it cannot be retrieved again. You can regenerate it via `PUT /api/client-tokens/{token_id}/regenerate`.
 </Warning>
 
 ### Use a Client Token
@@ -144,7 +144,7 @@ curl -X POST http://localhost:8080/client-tokens \
 Client tokens use the same `Authorization: Bearer` header as OAuth2 tokens:
 
 ```bash
-curl http://localhost:8080/roms \
+curl http://localhost:8080/api/roms \
   -H "Authorization: Bearer romm_<raw_token_value>"
 ```
 
@@ -152,14 +152,14 @@ curl http://localhost:8080/roms \
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/client-tokens` | List your tokens (requires `me.read`) |
-| `DELETE` | `/client-tokens/{token_id}` | Delete a token (requires `me.write`) |
-| `PUT` | `/client-tokens/{token_id}/regenerate` | Issue a new raw value for an existing token |
-| `POST` | `/client-tokens/{token_id}/pair` | Generate a short-lived pairing code |
-| `POST` | `/client-tokens/exchange` | Exchange a pairing code for the token |
+| `GET` | `/api/client-tokens` | List your tokens (requires `me.read`) |
+| `DELETE` | `/api/client-tokens/{token_id}` | Delete a token (requires `me.write`) |
+| `PUT` | `/api/client-tokens/{token_id}/regenerate` | Issue a new raw value for an existing token |
+| `POST` | `/api/client-tokens/{token_id}/pair` | Generate a short-lived pairing code |
+| `POST` | `/api/client-tokens/exchange` | Exchange a pairing code for the token |
 
 <Note>
-  Each user can have a maximum of **25** client tokens. Admins can list and delete all users' tokens via `GET /client-tokens/all` and `DELETE /client-tokens/{token_id}/admin`.
+  Each user can have a maximum of **25** client tokens. Admins can list and delete all users' tokens via `GET /api/client-tokens/all` and `DELETE /api/client-tokens/{token_id}/admin`.
 </Note>
 
 ---
@@ -168,10 +168,10 @@ curl http://localhost:8080/roms \
 
 The session login endpoint accepts HTTP Basic credentials and sets a server-side session cookie used by the web UI.
 
-**Endpoint:** `POST /login`
+**Endpoint:** `POST /api/login`
 
 ```bash
-curl -X POST http://localhost:8080/login \
+curl -X POST http://localhost:8080/api/login \
   -u admin:yourpassword \
   -c cookies.txt
 ```
@@ -179,10 +179,10 @@ curl -X POST http://localhost:8080/login \
 The session cookie (`romm_session`) is then sent automatically by browsers. Its lifetime is controlled by the `SESSION_MAX_AGE_SECONDS` environment variable.
 
 <Note>
-  HTTP Basic via `/login` is intended for the web UI session flow. For API integrations prefer OAuth2 bearer tokens or client tokens, which carry explicit scopes and can be independently revoked.
+  HTTP Basic via `/api/login` is intended for the web UI session flow. For API integrations prefer OAuth2 bearer tokens or client tokens, which carry explicit scopes and can be independently revoked.
 </Note>
 
-**Logout:** `POST /logout` clears the session. When OIDC RP-Initiated Logout is configured, the response includes an `oidc_logout_url` to redirect the browser to the identity provider.
+**Logout:** `POST /api/logout` clears the session. When OIDC RP-Initiated Logout is configured, the response includes an `oidc_logout_url` to redirect the browser to the identity provider.
 
 ---
 
@@ -192,8 +192,8 @@ When `OIDC_ENABLED=true` is set, users can authenticate via an external OIDC pro
 
 | Endpoint | Description |
 |---|---|
-| `GET /login/openid` | Redirects the browser to the OIDC authorization endpoint |
-| `GET /oauth/openid` | OIDC callback — exchanges the code, creates or updates the user session |
+| `GET /api/login/openid` | Redirects the browser to the OIDC authorization endpoint |
+| `GET /api/oauth/openid` | OIDC callback — exchanges the code, creates or updates the user session |
 
 ---
 
@@ -201,8 +201,8 @@ When `OIDC_ENABLED=true` is set, users can authenticate via an external OIDC pro
 
 | Endpoint | Description |
 |---|---|
-| `POST /forgot-password` | Request a password reset link (body: `{"username": "..."}`) |
-| `POST /reset-password` | Reset the password using the emailed token (body: `{"token": "...", "new_password": "..."}`) |
+| `POST /api/forgot-password` | Request a password reset link (body: `{"username": "..."}`) |
+| `POST /api/reset-password` | Reset the password using the emailed token (body: `{"token": "...", "new_password": "..."}`) |
 
 ---
 

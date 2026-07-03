@@ -1,13 +1,13 @@
 ---
-title: "Multi-Disk Games, DLCs, and Patches in RomM"
+title: "Multi-Disk Games, DLC, and Patches in RomM Explained"
 sidebarTitle: "Multi-Disk Games"
-description: "Structure multi-disk games, DLCs, mods, patches, and manuals so RomM groups them correctly under a single library entry."
+description: "Structure multi-disk games, DLC, updates, mods, patches, and manuals so RomM groups them correctly under a single ROM library entry."
 ---
 
 RomM handles multi-file games by treating any sub-folder found directly inside a platform directory as a single game entry. All files inside that sub-folder are scanned and categorised as individual `RomFile` records, each carrying a `category` field drawn from the `RomFileCategory` enum. This allows a three-disc PlayStation game, its manual, its DLC, and an IPS patch to all live under one ROM record with distinct download and display options in the UI.
 
 <Warning>
-  RomM only scans **one level** of sub-folder depth. Directories nested inside a multi-file game's folder are not recursively traversed. Keep all game files flat inside the single game sub-folder.
+  Only **top-level directories** inside a platform folder are treated as multi-file ROM entries. Files within those ROM sub-folders are scanned recursively, but deeper directories are not promoted to their own ROM entries. To avoid phantom ROM entries keep media sub-folders (screenshots, videos, etc.) in the exclusion list described at the bottom of this page.
 </Warning>
 
 ## Multi-Disc Games
@@ -55,11 +55,11 @@ RomM automatically assigns a category to every file in a multi-file game by matc
 | Manual | `manual` | `manual`, `manuals` |
 | Patch | `patch` | `patch`, `patches` |
 | Update | `update` | `update`, `updates` |
-| Mod | `mod` | `mods` |
-| Demo | `demo` | `demos` |
+| Mod | `mod` | `mod`, `mods` |
+| Demo | `demo` | `demo`, `demos` |
 | Translation | `translation` | `translation`, `translations` |
 | Prototype | `prototype` | `prototype`, `prototypes` |
-| Cheat | `cheat` | `cheats` |
+| Cheat | `cheat` | `cheat`, `cheats` |
 | Soundtrack | `soundtrack` | `soundtrack`, `soundtracks` |
 | Screenshot | `screenshot` | `screenshot`, `screenshots` |
 

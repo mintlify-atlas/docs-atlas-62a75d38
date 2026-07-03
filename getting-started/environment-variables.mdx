@@ -1,7 +1,7 @@
 ---
-title: "RomM Environment Variable Reference"
+title: "RomM Environment Variables: Complete Configuration Reference"
 sidebarTitle: "Environment Variables"
-description: "Complete reference for all RomM environment variables: database, Redis, authentication, metadata providers, scanning, scheduling, and web server settings."
+description: "All RomM environment variables documented: database, Redis, auth, OIDC, metadata providers, task scheduling, web server tuning, and observability."
 ---
 
 RomM is configured entirely through environment variables, which you can set directly in your `docker-compose.yml` file under the `environment:` key or in a separate `.env` file referenced by Docker Compose. The [`env.template`](https://github.com/rommapp/romm/blob/master/env.template) file in the RomM repository documents every available variable with inline comments and is the canonical reference for default values.
@@ -424,8 +424,16 @@ RomM is configured entirely through environment variables, which you can set dir
   Maximum number of requests a worker processes before it is automatically restarted (helps prevent memory leaks).
 </ParamField>
 
+<ParamField query="WEB_SERVER_MAX_REQUESTS_JITTER" type="integer" default="100">
+  Random jitter added to `WEB_SERVER_MAX_REQUESTS` to stagger worker restarts and avoid all workers cycling simultaneously.
+</ParamField>
+
 <ParamField query="WEB_SERVER_WORKER_CONNECTIONS" type="integer" default="1000">
   Maximum number of simultaneous clients per worker process.
+</ParamField>
+
+<ParamField query="WEB_SERVER_GUNICORN_WAIT_SECONDS" type="integer" default="30">
+  Seconds to wait for Gunicorn to start before giving up and failing the health check.
 </ParamField>
 
 <ParamField query="IPV4_ONLY" type="boolean" default="false">
@@ -462,4 +470,58 @@ RomM is configured entirely through environment variables, which you can set dir
 
 <ParamField query="NO_COLOR" type="boolean" default="false">
   Disable ANSI color codes in log output entirely.
+</ParamField>
+
+---
+
+## Observability
+
+<ParamField query="SENTRY_DSN" type="string">
+  DSN (Data Source Name) for [Sentry](https://sentry.io) error tracking. When set, unhandled exceptions and performance traces are sent to your Sentry project. Leave empty to disable Sentry entirely.
+</ParamField>
+
+---
+
+## Development
+
+These variables are intended for contributors running RomM outside of Docker (e.g., with Uvicorn or the Vite dev server). They are not needed in production deployments.
+
+<ParamField query="DEV_MODE" type="boolean" default="false">
+  Enable development mode, which activates hot-reloading and verbose debug output.
+</ParamField>
+
+<ParamField query="DEV_HOST" type="string" default="127.0.0.1">
+  Host address for the development server.
+</ParamField>
+
+<ParamField query="DEV_PORT" type="integer" default="5000">
+  Port for the development server.
+</ParamField>
+
+<ParamField query="DEV_HTTPS" type="boolean" default="false">
+  Enable HTTPS in the development server.
+</ParamField>
+
+<ParamField query="DEV_SQL_ECHO" type="boolean" default="false">
+  Log all SQL queries to stdout in development mode. Useful for diagnosing database behaviour.
+</ParamField>
+
+<ParamField query="POSTGRES_DB" type="string" default="authentik">
+  Postgres database name for the bundled Authentik development stack. Not used by RomM itself.
+</ParamField>
+
+<ParamField query="POSTGRES_USER" type="string" default="authentik">
+  Postgres username for the bundled Authentik development stack.
+</ParamField>
+
+<ParamField query="POSTGRES_PASSWORD" type="string" default="authentik">
+  Postgres password for the bundled Authentik development stack.
+</ParamField>
+
+<ParamField query="AUTHENTIK_SECRET_KEY" type="string">
+  Secret key for the Authentik identity provider in the development stack.
+</ParamField>
+
+<ParamField query="AUTHENTIK_BOOTSTRAP_PASSWORD" type="string">
+  Initial admin password for the Authentik identity provider in the development stack.
 </ParamField>

@@ -1,7 +1,7 @@
 ---
-title: "RomM config.yml Configuration File Reference"
+title: "RomM config.yml: Advanced Configuration File Reference"
 sidebarTitle: "Config File"
-description: "Configure scan exclusions, platform name mappings, metadata priority, EmulatorJS settings, and export options using RomM's config.yml file."
+description: "Use RomM's config.yml to configure scan exclusions, platform mappings, metadata priority, media assets, gamelist/Pegasus export, and EmulatorJS options."
 ---
 
 `config.yml` is an optional configuration file that unlocks advanced RomM behaviour beyond what environment variables expose — including scan exclusions, custom platform folder mappings, metadata and artwork priority ordering, media asset selection, gamelist/Pegasus export settings, and fine-grained EmulatorJS options. When present, it is read at startup and on every scan. The file is mounted into the container at `/romm/config/config.yml`.

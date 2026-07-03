@@ -1,5 +1,5 @@
 ---
-title: "RetroAchievements Integration in RomM"
+title: "RetroAchievements Integration: Setup and Sync in RomM"
 sidebarTitle: "RetroAchievements"
 description: "Display achievement lists and track user progress from RetroAchievements.org in your RomM library. Configure your API key and sync user progress."
 ---
@@ -121,7 +121,7 @@ environment:
   - SCHEDULED_RETROACHIEVEMENTS_PROGRESS_SYNC_CRON=0 4 * * *  # 4 AM daily
 ```
 
-Progress sync can also be triggered manually from the **Administration → Tasks** page or via the API.
+The progress sync runs automatically on the configured cron schedule. You can monitor its status from the **Administration → Tasks** page.
 
 ## Linking a RetroAchievements username
 

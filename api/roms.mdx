@@ -8,7 +8,7 @@ The ROMs API is the core of RomM's programmatic interface, providing full CRUD a
 
 ---
 
-## GET /roms
+## GET /api/roms
 
 Retrieve a paginated, filtered, and sorted list of ROMs. This is the primary browse endpoint and powers the web UI's game library view.
 
@@ -94,6 +94,10 @@ Retrieve a paginated, filtered, and sorted list of ROMs. This is the primary bro
   Filter by franchise. Logic controlled by `franchises_logic`.
 </ParamField>
 
+<ParamField query="collections" type="string[]">
+  Filter by collection name. Logic controlled by `collections_logic`.
+</ParamField>
+
 <ParamField query="companies" type="string[]">
   Filter by associated company. Logic controlled by `companies_logic`.
 </ParamField>
@@ -115,7 +119,7 @@ Retrieve a paginated, filtered, and sorted list of ROMs. This is the primary bro
 </ParamField>
 
 <ParamField query="metadata_providers" type="string[]">
-  Filter by matched provider: `igdb`, `moby`, `ss`, `ra`, `launchbox`, `hasheous`, `flashpoint`, `hltb`, `gamelist`, `libretro`.
+  Filter by matched provider: `igdb`, `moby`, `ss`, `ra`, `launchbox`, `hasheous`, `flashpoint`, `hltb`, `gamelist`, `libretro`. Logic controlled by `metadata_providers_logic`.
 </ParamField>
 
 <ParamField query="statuses" type="string[]">
@@ -165,7 +169,7 @@ Each multi-value filter has a corresponding `_logic` parameter that accepts `any
 </ParamField>
 
 ```bash
-curl "http://localhost:8080/roms?platform_ids=3&limit=25&order_by=name" \
+curl "http://localhost:8080/api/roms?platform_ids=3&limit=25&order_by=name" \
   -H "Authorization: Bearer <token>"
 ```
 
@@ -189,14 +193,14 @@ curl "http://localhost:8080/roms?platform_ids=3&limit=25&order_by=name" \
 
 ---
 
-## GET /roms/identifiers
+## GET /api/roms/identifiers
 
 Retrieve only the IDs of all ROMs visible to the current user. Lightweight alternative to the full list.
 
 **Required scope:** `roms.read`
 
 ```bash
-curl http://localhost:8080/roms/identifiers \
+curl http://localhost:8080/api/roms/identifiers \
   -H "Authorization: Bearer <token>"
 ```
 
@@ -204,7 +208,7 @@ curl http://localhost:8080/roms/identifiers \
 
 ---
 
-## GET /roms/download
+## GET /api/roms/download
 
 Download multiple ROMs as a single zip file.
 
@@ -219,14 +223,14 @@ Download multiple ROMs as a single zip file.
 </ParamField>
 
 ```bash
-curl "http://localhost:8080/roms/download?rom_ids=1,2,3" \
+curl "http://localhost:8080/api/roms/download?rom_ids=1,2,3" \
   -H "Authorization: Bearer <token>" \
   -o roms.zip
 ```
 
 ---
 
-## GET /roms/by-metadata-provider
+## GET /api/roms/by-metadata-provider
 
 Look up a single ROM by its external metadata ID. At least one ID parameter must be provided.
 
@@ -243,71 +247,74 @@ Look up a single ROM by its external metadata ID. At least one ID parameter must
 <ParamField query="hltb_id" type="integer">HowLongToBeat game ID.</ParamField>
 
 ```bash
-curl "http://localhost:8080/roms/by-metadata-provider?igdb_id=2113" \
+curl "http://localhost:8080/api/roms/by-metadata-provider?igdb_id=2113" \
   -H "Authorization: Bearer <token>"
 ```
 
 ---
 
-## GET /roms/{id}
+## GET /api/roms/by-hash
+
+Look up a single ROM by its file hash. At least one hash parameter must be provided.
+
+**Required scope:** `roms.read` (unless `DISABLE_DOWNLOAD_ENDPOINT_AUTH=true`)
+
+<ParamField query="crc_hash" type="string">CRC32 hash value.</ParamField>
+<ParamField query="md5_hash" type="string">MD5 hash value.</ParamField>
+<ParamField query="sha1_hash" type="string">SHA1 hash value.</ParamField>
+<ParamField query="ra_hash" type="string">RetroAchievements hash value.</ParamField>
+
+```bash
+curl "http://localhost:8080/api/roms/by-hash?crc_hash=a1b2c3d4" \
+  -H "Authorization: Bearer <token>"
+```
+
+---
+
+## GET /api/roms/{id}
 
 Retrieve full details for a single ROM, including metadata, file list, platform info, and user-specific data.
 
-**Required scope:** `roms.read`
+**Required scope:** `roms.read` (unless `DISABLE_DOWNLOAD_ENDPOINT_AUTH=true`)
 
 <ParamField path="id" type="integer" required>
   ROM internal ID.
 </ParamField>
 
 ```bash
-curl http://localhost:8080/roms/42 \
+curl http://localhost:8080/api/roms/42 \
   -H "Authorization: Bearer <token>"
 ```
 
 ---
 
-## GET /roms/{id}/files
+## GET /api/roms/{id}/content/{file_name}
 
-Retrieve the file record for a specific ROM file by its file ID.
-
-**Required scope:** `roms.read`
-
-<ParamField path="id" type="integer" required>
-  ROM file internal ID.
-</ParamField>
-
-```bash
-curl http://localhost:8080/roms/15/files \
-  -H "Authorization: Bearer <token>"
-```
-
----
-
-## GET /roms/{id}/files/content/{file_name}
-
-Download a ROM file by its file ID.
+Download a ROM file. For single-file ROMs the file is served directly; for multi-file ROMs a zip archive is returned.
 
 **Required scope:** `roms.read` (unless `DISABLE_DOWNLOAD_ENDPOINT_AUTH=true`)
 
 <ParamField path="id" type="integer" required>
-  ROM file internal ID.
+  ROM internal ID.
 </ParamField>
 
 <ParamField path="file_name" type="string" required>
-  The file name (must match the record; used for Content-Disposition only — the actual file served is determined by the database record for security).
+  Used as the output filename (or zip filename). The actual file(s) served are determined by the database record.
+</ParamField>
+
+<ParamField query="file_ids" type="string">
+  Comma-separated list of file IDs to include for multi-part ROMs. If omitted, all files are included.
 </ParamField>
 
 ```bash
-curl "http://localhost:8080/roms/15/files/content/SuperMario64.z64" \
+curl "http://localhost:8080/api/roms/15/content/SuperMario64.z64" \
   -H "Authorization: Bearer <token>" \
   -o SuperMario64.z64
 ```
 
-Audio/soundtrack files are served inline with an appropriate audio MIME type; game ROMs are served as `application/octet-stream` with `Content-Disposition: attachment`.
-
 ---
 
-## PATCH /roms/{id}
+## PUT /api/roms/{id}
 
 Update a ROM's metadata. Accepts `multipart/form-data` so that cover artwork can be uploaded in the same request.
 
@@ -322,20 +329,24 @@ Update a ROM's metadata. Accepts `multipart/form-data` so that cover artwork can
   <ParamField body="summary" type="string">Game summary / description.</ParamField>
   <ParamField body="fs_name" type="string">Filesystem filename. Changing this renames the file on disk.</ParamField>
   <ParamField body="igdb_id" type="string">IGDB game ID. Providing a new ID fetches fresh IGDB metadata.</ParamField>
+  <ParamField body="sgdb_id" type="string">SteamGridDB game ID.</ParamField>
   <ParamField body="moby_id" type="string">MobyGames game ID.</ParamField>
   <ParamField body="ss_id" type="string">ScreenScraper game ID.</ParamField>
   <ParamField body="ra_id" type="string">RetroAchievements game ID.</ParamField>
   <ParamField body="launchbox_id" type="string">LaunchBox game ID.</ParamField>
   <ParamField body="hasheous_id" type="string">Hasheous game ID.</ParamField>
+  <ParamField body="tgdb_id" type="string">TheGamesDB game ID.</ParamField>
   <ParamField body="flashpoint_id" type="string">Flashpoint game ID.</ParamField>
   <ParamField body="hltb_id" type="string">HowLongToBeat game ID.</ParamField>
+  <ParamField body="libretro_id" type="string">Libretro thumbnail ID.</ParamField>
   <ParamField body="url_cover" type="string">Remote URL to fetch and store as cover art.</ParamField>
   <ParamField body="artwork" type="file">Cover image file to upload directly (JPEG/PNG/WebP).</ParamField>
   <ParamField body="remove_cover" type="boolean">Set to `true` to remove the existing cover image.</ParamField>
+  <ParamField body="unmatch_metadata" type="boolean">Set to `true` to clear all metadata matches for this ROM.</ParamField>
 </Expandable>
 
 ```bash
-curl -X PATCH http://localhost:8080/roms/42 \
+curl -X PUT http://localhost:8080/api/roms/42 \
   -H "Authorization: Bearer <token>" \
   -F "name=Super Mario 64 (USA)" \
   -F "igdb_id=2113"
@@ -345,7 +356,7 @@ curl -X PATCH http://localhost:8080/roms/42 \
 
 ---
 
-## POST /roms/{id}/patch
+## POST /api/roms/{id}/patch
 
 Apply a ROM patch file server-side and download the patched output. Both the base ROM file and the patch file must already exist in your library.
 
@@ -364,7 +375,7 @@ Apply a ROM patch file server-side and download the patched output. Both the bas
 </ParamField>
 
 ```bash
-curl -X POST http://localhost:8080/roms/15/patch \
+curl -X POST http://localhost:8080/api/roms/15/patch \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"patch_file_id": 28}' \
@@ -379,7 +390,7 @@ The response is the patched binary file (`application/octet-stream`). The `X-Pat
 
 ---
 
-## PUT /roms/{id}/props
+## PUT /api/roms/{id}/props
 
 Update ROM properties specific to the current user — play status, ratings, backlog flag, hidden flag, etc.
 
@@ -409,7 +420,7 @@ Update ROM properties specific to the current user — play status, ratings, bac
 </Expandable>
 
 ```bash
-curl -X PUT http://localhost:8080/roms/42/props \
+curl -X PUT http://localhost:8080/api/roms/42/props \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"rating": 9, "status": "completed"}'
@@ -417,7 +428,7 @@ curl -X PUT http://localhost:8080/roms/42/props \
 
 ---
 
-## POST /roms/delete
+## POST /api/roms/delete
 
 Delete one or more ROMs. Optionally also remove the files from disk.
 
@@ -432,7 +443,7 @@ Delete one or more ROMs. Optionally also remove the files from disk.
 </ParamField>
 
 ```bash
-curl -X POST http://localhost:8080/roms/delete \
+curl -X POST http://localhost:8080/api/roms/delete \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"roms": [42, 43], "delete_from_fs": [42]}'
