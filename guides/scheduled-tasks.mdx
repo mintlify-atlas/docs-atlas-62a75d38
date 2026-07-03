@@ -1,0 +1,171 @@
+---
+title: "Scheduled Tasks and Background Jobs in RomM"
+sidebarTitle: "Scheduled Tasks"
+description: "Configure RomM's background task scheduler for automatic library rescans, metadata updates, image conversion, and RetroAchievements sync."
+---
+
+RomM uses a Redis-backed task queue ([RQ](https://python-rq.org/)) for all background operations. Tasks can be triggered automatically on a cron schedule, fired on-demand from the administration UI, or called via the API. Jobs run in separate worker processes, so they do not block the web server while in progress.
+
+## Scheduled tasks
+
+These tasks run automatically according to their cron expressions. Each one can be enabled independently so you only run what you need.
+
+### Library rescan
+
+Rescans the entire library against all enabled metadata sources using a quick scan (only new or changed files).
+
+| Variable | Default | Description |
+|---|---|---|
+| `ENABLE_SCHEDULED_RESCAN` | `false` | Enable the scheduled rescan |
+| `SCHEDULED_RESCAN_CRON` | `0 3 * * *` | Cron expression (default: 3 AM daily) |
+
+```yaml
+environment:
+  - ENABLE_SCHEDULED_RESCAN=true
+  - SCHEDULED_RESCAN_CRON=0 3 * * *
+```
+
+### Switch TitleDB update
+
+Downloads the latest Nintendo Switch title database from [blawar/titledb](https://github.com/blawar/titledb) (`US.en.json`) and stores it in Redis for use during scans. This keeps Switch game metadata current without a full rescan.
+
+| Variable | Default | Description |
+|---|---|---|
+| `ENABLE_SCHEDULED_UPDATE_SWITCH_TITLEDB` | `false` | Enable the scheduled TitleDB update |
+| `SCHEDULED_UPDATE_SWITCH_TITLEDB_CRON` | `0 4 * * *` | Cron expression (default: 4 AM daily) |
+
+```yaml
+environment:
+  - ENABLE_SCHEDULED_UPDATE_SWITCH_TITLEDB=true
+  - SCHEDULED_UPDATE_SWITCH_TITLEDB_CRON=0 4 * * *
+```
+
+### LaunchBox metadata update
+
+Downloads the latest LaunchBox metadata and stores it locally for use during scans.
+
+| Variable | Default | Description |
+|---|---|---|
+| `ENABLE_SCHEDULED_UPDATE_LAUNCHBOX_METADATA` | `false` | Enable the scheduled LaunchBox metadata update |
+| `SCHEDULED_UPDATE_LAUNCHBOX_METADATA_CRON` | `0 4 * * *` | Cron expression (default: 4 AM daily) |
+
+```yaml
+environment:
+  - ENABLE_SCHEDULED_UPDATE_LAUNCHBOX_METADATA=true
+  - LAUNCHBOX_API_ENABLED=true
+  - SCHEDULED_UPDATE_LAUNCHBOX_METADATA_CRON=0 4 * * *
+```
+
+### Image conversion to WebP
+
+Converts existing cover images (PNG, JPG, JPEG, BMP, TIFF, GIF) in the resources directory to WebP format for better compression and faster page loads. The task scans every `cover/` subdirectory under the resources path and converts any image that does not already have a `.webp` counterpart, preserving the original file. Images are converted at 90% quality with optimization enabled.
+
+This task supports **manual runs** from the administration UI in addition to the cron schedule.
+
+| Variable | Default | Description |
+|---|---|---|
+| `ENABLE_SCHEDULED_CONVERT_IMAGES_TO_WEBP` | `false` | Enable the scheduled WebP conversion |
+| `SCHEDULED_CONVERT_IMAGES_TO_WEBP_CRON` | `0 4 * * *` | Cron expression (default: 4 AM daily) |
+
+```yaml
+environment:
+  - ENABLE_SCHEDULED_CONVERT_IMAGES_TO_WEBP=true
+  - SCHEDULED_CONVERT_IMAGES_TO_WEBP_CRON=0 4 * * *
+```
+
+### RetroAchievements progress sync
+
+Fetches updated achievement progress for all users who have linked their RetroAchievements username. The sync is incremental — games where the unlock count and most recent award date have not changed since the last run are skipped to minimise API calls.
+
+| Variable | Default | Description |
+|---|---|---|
+| `ENABLE_SCHEDULED_RETROACHIEVEMENTS_PROGRESS_SYNC` | `false` | Enable the scheduled progress sync |
+| `SCHEDULED_RETROACHIEVEMENTS_PROGRESS_SYNC_CRON` | `0 4 * * *` | Cron expression (default: 4 AM daily) |
+
+```yaml
+environment:
+  - ENABLE_SCHEDULED_RETROACHIEVEMENTS_PROGRESS_SYNC=true
+  - SCHEDULED_RETROACHIEVEMENTS_PROGRESS_SYNC_CRON=0 4 * * *
+```
+
+<Tip>
+  Stagger your cron schedules to avoid running multiple heavy tasks simultaneously. For example: rescan at `0 3 * * *`, TitleDB update at `0 4 * * *`, and image conversion at `0 5 * * *`. This prevents resource contention during off-peak hours.
+</Tip>
+
+---
+
+## Manual tasks
+
+These tasks do not run on a schedule but can be triggered on-demand from **Administration → Tasks** or via `POST /api/tasks/run/{task_name}`.
+
+| Task name | Description |
+|---|---|
+| `cleanup_orphaned_resources` | Removes resource files (covers, screenshots, badges) that are no longer referenced by any ROM in the database |
+| `cleanup_missing_roms` | Marks ROMs as missing when their file is no longer present on disk |
+| `sync_folder_scan` | Triggers a scan of the sync folder for changes |
+| `recompute_save_content_hashes` | Recalculates SHA-1 content hashes for all save files |
+
+---
+
+## Filesystem watcher
+
+In addition to scheduled rescans, RomM can watch the library directory for filesystem changes and trigger an automatic rescan when files are added, removed, or modified.
+
+| Variable | Default | Description |
+|---|---|---|
+| `ENABLE_RESCAN_ON_FILESYSTEM_CHANGE` | `false` | Enable the filesystem watcher |
+| `RESCAN_ON_FILESYSTEM_CHANGE_DELAY` | `5` | Minutes to wait after detecting a change before starting the rescan |
+
+```yaml
+environment:
+  - ENABLE_RESCAN_ON_FILESYSTEM_CHANGE=true
+  - RESCAN_ON_FILESYSTEM_CHANGE_DELAY=5
+```
+
+The delay prevents a rescan from firing mid-copy when you are transferring a large batch of files. Setting it to `0` triggers the rescan immediately after the first change is detected.
+
+---
+
+## Task API
+
+The task system exposes a REST API under `/api/tasks`.
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/tasks` | List all tasks grouped by type (`scheduled`, `manual`, `watcher`) with their current enabled state and cron string |
+| `GET` | `/api/tasks/status` | Get the status of all active, queued, completed, and failed jobs |
+| `GET` | `/api/tasks/{task_id}` | Get the status of a specific job by its ID |
+| `POST` | `/api/tasks/run/{task_name}` | Enqueue a task for immediate execution |
+
+**Example — trigger a manual WebP conversion:**
+
+```bash
+curl -X POST http://romm-host/api/tasks/run/convert_images_to_webp \
+  -H "Authorization: Bearer <your_token>"
+```
+
+---
+
+## Cron expression reference
+
+| Expression | Meaning |
+|---|---|
+| `0 3 * * *` | Every day at 3:00 AM |
+| `0 4 * * *` | Every day at 4:00 AM |
+| `0 */6 * * *` | Every 6 hours |
+| `0 3 * * 0` | Every Sunday at 3:00 AM |
+| `0 3 1 * *` | First day of each month at 3:00 AM |
+| `*/30 * * * *` | Every 30 minutes |
+
+Cron expressions follow the standard five-field format: `minute hour day-of-month month day-of-week`.
+
+---
+
+## Other task settings
+
+| Variable | Default | Description |
+|---|---|---|
+| `SCAN_TIMEOUT` | `14400` | Timeout in seconds for scan/rescan tasks (4 hours) |
+| `SCAN_WORKERS` | `1` | Number of parallel worker processes for scanning |
+| `TASK_TIMEOUT` | `300` | Timeout in seconds for non-scan background tasks |
+| `TASK_RESULT_TTL` | `86400` | How long (seconds) to keep completed task results in Redis |

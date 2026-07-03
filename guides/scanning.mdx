@@ -1,0 +1,191 @@
+---
+title: "Scanning and Enriching Your ROM Library"
+sidebarTitle: "Scanning"
+description: "Run a full library scan, rescan individual platforms or ROMs, configure scan workers, and set up automatic rescans when your filesystem changes."
+---
+
+Scanning is the process by which RomM walks your ROM library directory, identifies games, and enriches them with metadata from one or more configured providers. During a scan RomM calculates file hashes, matches ROMs against databases such as IGDB, MobyGames, ScreenScraper, RetroAchievements, LaunchBox, and others, then downloads cover art and screenshots so every game in your library has rich detail pages.
+
+## Triggering a Scan
+
+### From the UI
+
+Navigate to **Settings → Scan** in the RomM web interface. Choose your scan type, select the metadata sources you want to query, then click **Start Scan**. A live progress feed appears in the scan panel showing each platform and ROM as they are processed.
+
+### Via the API
+
+Scans are dispatched through the WebSocket-based scan endpoint. You can also run a scheduled or manual task via the REST API:
+
+```http
+POST /api/tasks/run/scan_library
+Content-Type: application/json
+```
+
+For more granular control — selecting specific platforms or ROM IDs — connect to the scan WebSocket and emit a `scan` event with an options payload:
+
+```json
+{
+  "type": "quick",
+  "platforms": [12, 34],
+  "apis": ["igdb", "ss", "moby"],
+  "roms_ids": []
+}
+```
+
+## Scan Types
+
+RomM supports several scan modes, reflected in the `ScanType` enum in `scan_handler.py`:
+
+| Scan Type | Behaviour |
+|---|---|
+| `new_platforms` | Only scans platform folders that do not yet exist in the database |
+| `quick` | Adds newly discovered ROMs; skips ROMs already in the database |
+| `update` | Re-fetches metadata for all existing ROMs using their stored provider IDs |
+| `unmatched` | Only processes ROMs that have no metadata match yet |
+| `complete` | Full rescan — clears all metadata and re-identifies every ROM from scratch |
+| `hashes` | Recalculates file hashes without re-fetching metadata |
+
+## What Happens During a Scan
+
+<Steps>
+  <Step title="Platform discovery">
+    RomM reads your library root and finds all platform sub-folders. Each folder name is matched against the configured platform slug map (see `system.platforms` in `config.yml`) and then looked up across all enabled metadata providers (IGDB, ScreenScraper, MobyGames, RetroAchievements, LaunchBox, Hasheous, TheGamesDB, Flashpoint, HowLongToBeat, Libretro, and ES-DE `gamelist.xml`).
+  </Step>
+  <Step title="ROM file discovery">
+    Inside each platform folder RomM collects both single-file ROMs and any sub-folder entries (treated as multi-file or multi-disc games). Exclusion rules defined in `config.yml` are applied at this stage.
+  </Step>
+  <Step title="Hash calculation">
+    For each ROM file RomM computes CRC32, MD5, SHA-1, and RetroAchievements hashes. Hashes are used for accurate provider matching (Playmatch, Hasheous, ScreenScraper hash lookup) and deduplication.
+  </Step>
+  <Step title="Metadata fetching">
+    All enabled metadata providers are queried **concurrently** for each ROM. Playmatch and Hasheous are consulted first as hash-based identification services; their matched IDs are passed directly to IGDB, ScreenScraper, and RetroAchievements to avoid ambiguous name searches.
+  </Step>
+  <Step title="Priority merge">
+    Results from every provider are merged according to the priority order defined in `scan.priority.metadata` and `scan.priority.artwork` in `config.yml`. Higher-priority sources overwrite lower-priority ones for any field they supply.
+  </Step>
+  <Step title="Cover art and screenshots">
+    Cover images and screenshots are downloaded from the winning artwork source and stored locally so they are available even when provider APIs are offline.
+  </Step>
+</Steps>
+
+<Note>
+  Hash calculation reads every ROM file in full, which can be slow on network-attached or low-performance storage. You can disable it by setting `filesystem.skip_hash_calculation: true` in `config.yml`. When hashes are skipped, hash-based matching services (Playmatch, Hasheous, and the ScreenScraper hash lookup) will not be able to identify ROMs, so name-based matching is used instead.
+</Note>
+
+## Configuration Reference
+
+### Parallel scan workers
+
+By default RomM scans one ROM at a time. On multi-core hosts you can speed up scanning by increasing the number of parallel workers:
+
+```bash
+SCAN_WORKERS=4
+```
+
+Each worker processes a separate ROM concurrently. Set this to approximately the number of CPU cores you want to dedicate to scanning. The minimum value is `1`.
+
+### Scan timeout
+
+Large libraries can take a long time to scan. The `SCAN_TIMEOUT` environment variable sets the maximum allowed wall-clock seconds for a single scan job before it is cancelled:
+
+```bash
+SCAN_TIMEOUT=14400   # 4 hours (default)
+```
+
+### Auto-rescan on filesystem change
+
+When `ENABLE_RESCAN_ON_FILESYSTEM_CHANGE` is enabled, RomM watches the library path and automatically triggers a new scan whenever a file is added, removed, or renamed. A configurable delay prevents excessive rescans when many files arrive at once:
+
+```bash
+ENABLE_RESCAN_ON_FILESYSTEM_CHANGE=true
+RESCAN_ON_FILESYSTEM_CHANGE_DELAY=5   # minutes (default: 5)
+```
+
+The watcher task appears in **Settings → Tasks** under the **Watcher** group and shows whether it is currently enabled.
+
+### Scheduled rescans
+
+You can schedule a periodic full library rescan using a cron expression:
+
+```bash
+ENABLE_SCHEDULED_RESCAN=true
+SCHEDULED_RESCAN_CRON="0 3 * * *"   # 3:00 AM every day (default)
+```
+
+The scheduled scan runs a `quick` scan using all currently enabled metadata sources. If no sources are enabled the task logs a warning and exits without scanning.
+
+## Partial Scans
+
+To scan only specific platforms pass their database IDs in the WebSocket payload:
+
+```json
+{
+  "type": "quick",
+  "platforms": [7, 42],
+  "apis": ["igdb", "ss"]
+}
+```
+
+Passing an empty `platforms` array scans all platforms. This is how the scheduled rescan task works internally.
+
+## Manual Metadata Refresh
+
+To re-identify a single ROM without scanning the entire library, open the game's detail page in the RomM UI and click **Rescan**. Alternatively, trigger a targeted scan with that ROM's ID via the WebSocket:
+
+```json
+{
+  "type": "complete",
+  "platforms": [],
+  "roms_ids": [1234],
+  "apis": ["igdb", "ss", "moby"]
+}
+```
+
+## Cleanup Tasks
+
+Over time ROMs may be removed from your filesystem while their database entries remain. The **Cleanup Missing ROMs** task finds all ROM entries flagged as `missing_from_fs` and deletes them along with their associated resources:
+
+```http
+POST /api/tasks/run/cleanup_missing_roms
+Content-Type: application/json
+
+{"platform_id": null}
+```
+
+Pass a specific `platform_id` integer to restrict cleanup to one platform, or `null` to clean up the entire library. Run this task after removing ROM files from disk to keep the database in sync.
+
+<Tip>
+  After a scan RomM marks any previously known ROM whose file is no longer present on disk as `missing_from_fs = true` rather than deleting it immediately. This lets you review what went missing before committing to a permanent delete via the cleanup task.
+</Tip>
+
+## Metadata Priority
+
+The order in which providers are consulted for metadata and artwork is fully configurable in `config.yml`. The defaults are:
+
+```yaml
+scan:
+  priority:
+    metadata:
+      - igdb
+      - moby
+      - ss
+      - ra
+      - launchbox
+      - gamelist
+      - hasheous
+      - flashpoint
+      - hltb
+    artwork:
+      - igdb
+      - moby
+      - ss
+      - ra
+      - launchbox
+      - libretro
+      - gamelist
+      - hasheous
+      - flashpoint
+      - hltb
+```
+
+Sources listed first take highest priority: if IGDB returns a cover URL it will be used over one from MobyGames even if MobyGames is also enabled.

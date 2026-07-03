@@ -1,0 +1,356 @@
+---
+title: "Authentication, Users, and Roles in RomM"
+sidebarTitle: "Authentication"
+description: "Configure user accounts, roles, and API authentication in RomM. Covers session login, OAuth2 tokens, client API tokens, and role-based access control."
+---
+
+RomM supports multiple authentication methods and a role-based permission system so you can control exactly who can view, edit, or administer your library. Whether you are integrating a third-party app, building an automation script, or running a shared family server, there is an auth method that fits your use case.
+
+## Roles and Permissions
+
+RomM has two top-level roles that determine a user's access level.
+
+| Role | Description |
+|------|-------------|
+| `admin` | Full access to everything. Admins bypass all permission checks, can manage other users, run tasks, view backend logs, and perform any write operation across the entire library. |
+| `user` | Access determined entirely by the user's **permission group** and any per-user overrides. |
+
+<Note>
+The legacy `viewer` and `editor` roles from older versions of RomM are automatically mapped to `user` via `Role.coerce()`. Any in-flight invite tokens that reference those old roles will still work and will be treated as `user` on registration.
+</Note>
+
+### Permission Groups
+
+Non-admin users belong to a **permission group** — a named matrix of `(entity, action)` grants. Each grant can also be flagged as `own_only`, restricting it to resources the user owns (for example, managing their own saves or collections without touching anyone else's).
+
+The permission entities are: `platforms`, `roms`, `collections`, `firmware`, `assets`, `devices`, `users`, `tasks`, and `logs`. Each entity supports `read`, `write`, and `delete` actions.
+
+On top of a user's group, **per-user overrides** can add a grant the group doesn't provide, or revoke one it does. One group is designated the server-wide default and is applied to every new user automatically.
+
+Admins are unaffected by groups and overrides — they always have full access.
+
+### OAuth Scopes
+
+Scopes are the coarse-grained access vocabulary used by OAuth2 tokens and client tokens. They are derived from a user's resolved permission group at access time.
+
+<Tip>
+Admins always receive all scopes. For `user`-role accounts, the scopes are computed from the permission group the user belongs to.
+</Tip>
+
+**Read scopes** (available to all users with read access):
+
+| Scope | Description |
+|-------|-------------|
+| `me.read` | View your own profile |
+| `roms.read` | View ROMs |
+| `platforms.read` | View platforms |
+| `assets.read` | View assets (saves, states, screenshots) |
+| `devices.read` | View devices |
+| `firmware.read` | View firmware |
+| `roms.user.read` | View user-specific ROM properties |
+| `collections.read` | View collections |
+
+**Write scopes** (require write grants):
+
+| Scope | Description |
+|-------|-------------|
+| `me.write` | Modify your own profile and manage your client tokens |
+| `assets.write` | Modify assets |
+| `devices.write` | Modify devices |
+| `roms.user.write` | Modify user-specific ROM properties |
+| `collections.write` | Modify collections |
+
+**Edit scopes** (require broader edit grants):
+
+| Scope | Description |
+|-------|-------------|
+| `roms.write` | Modify ROMs |
+| `platforms.write` | Modify platforms |
+| `firmware.write` | Modify firmware |
+
+**Admin-only scopes**:
+
+| Scope | Description |
+|-------|-------------|
+| `users.read` | View all users |
+| `users.write` | Modify users |
+| `tasks.run` | Run background tasks |
+| `logs.read` | View backend logs |
+
+---
+
+## Session Login (Browser)
+
+The RomM web interface authenticates via **HTTP session cookies**. When you log in through the browser, RomM creates a server-side session and sets an encrypted `romm_session` cookie.
+
+### First-Boot Setup Wizard
+
+On first boot, if no admin user exists, RomM shows a setup wizard that lets you create the initial admin account. You can skip this by setting `DISABLE_SETUP_WIZARD=true` in your environment.
+
+### Login Endpoint
+
+The session login endpoint uses **HTTP Basic Auth**:
+
+```bash
+POST /login
+Authorization: Basic <base64(username:password)>
+```
+
+On success, the server writes the session cookie and stores the `username` and a `device_id` in the session. It also records the user's `last_login` and `last_active` timestamps.
+
+### Session Lifetime
+
+Sessions expire after the duration set by `SESSION_MAX_AGE_SECONDS` (default: `1209600` seconds, or 14 days).
+
+```bash
+SESSION_MAX_AGE_SECONDS=1209600
+```
+
+### Logout
+
+`POST /logout` clears the session. If OIDC RP-initiated logout is enabled and the session contains an OIDC `id_token`, the response includes an `oidc_logout_url` field your client should redirect the browser to in order to also end the session at the identity provider.
+
+---
+
+## OAuth2 Token Authentication
+
+For API clients and automation, RomM implements an **OAuth2 password grant** flow. This is the recommended method for scripts, CLI tools, and any integration that does not use the browser.
+
+### Obtaining Tokens
+
+Send a `POST` request to `/token` with form-encoded credentials:
+
+```bash
+curl -X POST http://localhost:8080/token \
+  -d 'grant_type=password&username=admin&password=yourpassword'
+```
+
+To request a specific subset of scopes, include the `scope` field (space-separated):
+
+```bash
+curl -X POST http://localhost:8080/token \
+  -d 'grant_type=password&username=admin&password=yourpassword&scope=roms.read platforms.read'
+```
+
+### Token Response
+
+```json
+{
+  "access_token": "<jwt>",
+  "refresh_token": "<jwt>",
+  "token_type": "bearer",
+  "expires": 1800,
+  "refresh_expires": 604800
+}
+```
+
+<ParamField body="access_token" type="string">
+  A signed JWT used in the `Authorization` header of every API request.
+</ParamField>
+
+<ParamField body="refresh_token" type="string">
+  A signed JWT used to obtain a new access token without re-entering credentials.
+</ParamField>
+
+<ParamField body="expires" type="integer">
+  Access token lifetime in seconds. Controlled by `OAUTH_ACCESS_TOKEN_EXPIRE_SECONDS` (default: `1800`).
+</ParamField>
+
+<ParamField body="refresh_expires" type="integer">
+  Refresh token lifetime in seconds. Controlled by `OAUTH_REFRESH_TOKEN_EXPIRE_SECONDS` (default: `604800`, i.e. 7 days).
+</ParamField>
+
+### Using the Access Token
+
+Include the token in the `Authorization` header:
+
+```bash
+curl http://localhost:8080/api/roms \
+  -H "Authorization: Bearer <access_token>"
+```
+
+### Refreshing the Access Token
+
+When the access token expires, use the refresh token to obtain a new pair without re-entering credentials:
+
+```bash
+curl -X POST http://localhost:8080/token \
+  -d 'grant_type=refresh_token&refresh_token=<your_refresh_token>'
+```
+
+### Token Lifetime Configuration
+
+```bash
+OAUTH_ACCESS_TOKEN_EXPIRE_SECONDS=1800    # 30 minutes (default)
+OAUTH_REFRESH_TOKEN_EXPIRE_SECONDS=604800 # 7 days (default)
+```
+
+<Warning>
+The `client_credentials` grant type is not yet supported. Use `grant_type=password` for all programmatic access.
+</Warning>
+
+---
+
+## Client Tokens (API Keys)
+
+**Client tokens** are long-lived, named API keys suited for persistent integrations and third-party applications. Unlike OAuth2 bearer tokens, they do not expire by default and do not require a password to create after the initial login.
+
+### Creating a Client Token
+
+```bash
+curl -X POST http://localhost:8080/api/client-tokens \
+  -H "Authorization: Bearer <access_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "My Integration",
+    "scopes": ["roms.read", "platforms.read"],
+    "expires_in": "90d"
+  }'
+```
+
+<ParamField body="name" type="string" required>
+  A human-readable label for the token.
+</ParamField>
+
+<ParamField body="scopes" type="array" required>
+  A list of scopes to grant. Must be a subset of your own effective scopes.
+</ParamField>
+
+<ParamField body="expires_in" type="string">
+  Optional expiry: `30d`, `90d`, `1y`, or `never` (the default). Omit for a non-expiring token.
+</ParamField>
+
+The response contains a `raw_token` field — this is the only time the plain-text token value is returned. Store it securely.
+
+### Using a Client Token
+
+Pass the raw token value in the `Authorization` header exactly like a bearer token:
+
+```bash
+curl http://localhost:8080/api/roms \
+  -H "Authorization: Bearer <raw_token>"
+```
+
+### Available Scopes for Client Tokens
+
+You can assign any scope to a client token, provided it does not exceed your own effective scopes:
+
+```
+me.read         me.write
+roms.read       roms.write
+roms.user.read  roms.user.write
+platforms.read  platforms.write
+assets.read     assets.write
+devices.read    devices.write
+firmware.read   firmware.write
+collections.read  collections.write
+users.read      users.write
+tasks.run
+logs.read
+```
+
+### Limits and Management
+
+- Each user can hold a maximum of **25 client tokens**.
+- Tokens can be listed (`GET /api/client-tokens`), deleted (`DELETE /api/client-tokens/{id}`), and regenerated (`PUT /api/client-tokens/{id}/regenerate`) at any time.
+- Admins can list and delete any user's tokens via `GET /api/client-tokens/all` and `DELETE /api/client-tokens/{id}/admin`.
+
+### Token Pairing (Device Flow)
+
+RomM supports a **device pairing** flow for apps that cannot display an interactive login screen (TV apps, CLI tools, game launchers, etc.).
+
+<Steps>
+  <Step title="Create the token in RomM">
+    Create a client token through the web UI or API as usual.
+  </Step>
+  <Step title="Generate a pair code">
+    ```bash
+    POST /api/client-tokens/{token_id}/pair
+    ```
+    This returns a short alphanumeric `code` (8 characters) and an `expires_in` of **60 seconds**.
+  </Step>
+  <Step title="Display the code to the user">
+    Show the pair code on the device screen and ask the user to enter it in the RomM web UI or companion app.
+  </Step>
+  <Step title="Poll for status">
+    ```bash
+    GET /api/client-tokens/pair/{code}/status
+    ```
+    Returns `200` while the code is valid, `404` once it has been consumed or expired.
+  </Step>
+  <Step title="Exchange the code for the raw token">
+    ```bash
+    POST /api/client-tokens/exchange
+    Content-Type: application/json
+
+    { "code": "ABCD1234" }
+    ```
+    On success, returns `ClientTokenCreateSchema` including the new `raw_token`. Exchanging a code regenerates the underlying token secret, so any previously issued value for that token is invalidated.
+  </Step>
+</Steps>
+
+<Note>
+The exchange endpoint is rate-limited to **5 attempts per 60 seconds** per IP address to prevent brute-forcing pair codes.
+</Note>
+
+---
+
+## Disabling and Restricting Features
+
+### Disable Username/Password Login
+
+```bash
+DISABLE_USERPASS_LOGIN=true
+```
+
+Prevents users from logging in with a username and password. Use this together with OIDC to enforce SSO-only access. The `/token` and `/login` endpoints will reject all password-based requests.
+
+### Disable Download Endpoint Authentication
+
+```bash
+DISABLE_DOWNLOAD_ENDPOINT_AUTH=true
+```
+
+Removes authentication from the ROM download endpoint. Required for integrations like **WebRcade** and **Tinfoil** that cannot send auth headers. Only enable this if your RomM instance is on a trusted private network.
+
+### Disable CSRF Protection
+
+```bash
+DISABLE_CSRF_PROTECTION=true
+```
+
+Disables CSRF token validation on state-mutating requests.
+
+<Warning>
+Disabling CSRF protection weakens the security of the session-based login. Only set this if a reverse proxy or middleware handles CSRF mitigation upstream.
+</Warning>
+
+### Kiosk Mode
+
+```bash
+KIOSK_MODE=true
+```
+
+Puts RomM into a read-only mode intended for public displays or shared kiosks. All write operations are blocked. The server generates a synthetic `kiosk` user (`id: -1`, `role: user`) for every unauthenticated request.
+
+### Disable the Setup Wizard
+
+```bash
+DISABLE_SETUP_WIZARD=false  # default
+```
+
+By default, RomM shows a first-boot wizard when no admin account exists. Set `DISABLE_SETUP_WIZARD=true` to skip it — useful in automated deployments where the first admin is created by a provisioning script.
+
+### Password Reset
+
+Users can request a password reset link via `POST /forgot-password` (body: `{"username": "..."}`) and then submit the token they receive via `POST /reset-password` (body: `{"token": "...", "new_password": "..."}`). The reset flow is independent of OIDC — it always operates on the local password.
+
+### Invite Links
+
+Admins (and users with `users.write` permission) can generate time-limited invite links. The default expiry is controlled by:
+
+```bash
+INVITE_TOKEN_EXPIRY_SECONDS=600  # 10 minutes (default)
+```
+
+Only admins can generate invite links for the `admin` role.

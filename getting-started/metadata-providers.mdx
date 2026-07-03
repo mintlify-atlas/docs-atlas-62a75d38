@@ -1,0 +1,335 @@
+---
+title: "Metadata Providers: IGDB, Screenscraper, and More"
+sidebarTitle: "Metadata Providers"
+description: "Configure and use IGDB, Screenscraper, MobyGames, SteamGridDB, RetroAchievements, Hasheous, LaunchBox, and other metadata providers to enrich your ROM library."
+---
+
+RomM enriches your library by pulling game metadata — titles, descriptions, cover art, screenshots, achievement lists, and completion times — from multiple external providers. Each provider has different strengths: IGDB excels at structured game data, Screenscraper at regional artwork, and RetroAchievements at hash-based ROM identification. You control which providers are active through environment variables, and you can fine-tune the order in which they are consulted by editing `config.yml`.
+
+<CardGroup cols={3}>
+  <Card title="IGDB" icon="database" href="#igdb">
+    Titles, descriptions, cover art, screenshots, genres, ratings
+  </Card>
+  <Card title="Screenscraper" icon="image" href="#screenscraper">
+    Regional artwork, videos, manuals, box art (2D/3D), bezels
+  </Card>
+  <Card title="MobyGames" icon="gamepad" href="#mobygames">
+    Game descriptions, screenshots, cover art, release info
+  </Card>
+  <Card title="SteamGridDB" icon="grid-2" href="#steamgriddb">
+    Custom grids, heroes, logos, and icons
+  </Card>
+  <Card title="RetroAchievements" icon="trophy" href="#retroachievements">
+    Achievement lists, user progress, hash-based ROM matching
+  </Card>
+  <Card title="Hasheous" icon="hashtag" href="#hasheous">
+    Hash-based ROM identification (no API key required)
+  </Card>
+  <Card title="LaunchBox" icon="box" href="#launchbox">
+    Game metadata and artwork from the LaunchBox database
+  </Card>
+  <Card title="HowLongToBeat" icon="clock" href="#howlongtobeat">
+    Main story, completionist, and co-op completion times
+  </Card>
+  <Card title="Flashpoint" icon="bolt" href="#flashpoint">
+    Web game and Flash game metadata
+  </Card>
+  <Card title="TheGamesDB" icon="table" href="#thegamesdb">
+    Hash-based lookups via TheGamesDB
+  </Card>
+</CardGroup>
+
+---
+
+## IGDB
+
+[IGDB](https://www.igdb.com/) (Internet Games Database) is RomM's primary metadata source. It provides rich, structured data including official titles, descriptions, cover art, screenshots, release dates, age ratings, genres, themes, and franchise information. IGDB is operated by Twitch and uses OAuth2 for API access.
+
+**What it provides:** Titles · Descriptions · Cover art · Screenshots · Release dates · Ratings · Genres · Themes · Franchises · Regional platform twins (e.g., SNES ↔ Super Famicom)
+
+### Getting credentials
+
+<Steps>
+  <Step title="Create a Twitch developer account">
+    Visit [dev.twitch.tv](https://dev.twitch.tv) and sign in with your Twitch account (or create one — it's free).
+  </Step>
+  <Step title="Register an application">
+    Go to the [Twitch Developer Console](https://dev.twitch.tv/console/apps) and click **Register Your Application**. Set the OAuth Redirect URL to `http://localhost` and choose **Other** as the category.
+  </Step>
+  <Step title="Copy your credentials">
+    After saving, click **Manage** on your application to reveal the **Client ID**. Generate a new **Client Secret** and copy both values — the secret is shown only once.
+  </Step>
+</Steps>
+
+### Environment variables
+
+```bash
+IGDB_CLIENT_ID=your_twitch_client_id
+IGDB_CLIENT_SECRET=your_twitch_client_secret
+```
+
+<Note>
+  The IGDB API is free but tied to a Twitch account. There are no hard rate limits for typical self-hosted use, though Twitch may throttle excessive requests.
+</Note>
+
+---
+
+## Screenscraper
+
+[Screenscraper](https://www.screenscraper.fr/) specialises in artwork and is the best source for regional cover variants, 2D and 3D box scans, title screens, in-game screenshots, bezel art, game manuals (PDF), and gameplay videos. It supports multilingual game descriptions and has deep coverage of older/retro platforms that IGDB may lack.
+
+**What it provides:** 2D/3D box art · Title screens · Screenshots · Bezel art · Manuals (PDF) · Videos · Fan art · Multilingual descriptions · Regional variants
+
+### Getting credentials
+
+<Steps>
+  <Step title="Create a free account">
+    Register at [screenscraper.fr](https://www.screenscraper.fr/membreinscription.php). An account is required even for free-tier API access.
+  </Step>
+  <Step title="Note your username and password">
+    RomM uses your Screenscraper login credentials directly — there is no separate API key.
+  </Step>
+</Steps>
+
+### Environment variables
+
+```bash
+SCREENSCRAPER_USER=your_screenscraper_username
+SCREENSCRAPER_PASSWORD=your_screenscraper_password
+```
+
+<Warning>
+  Screenscraper enforces per-account rate limits. Free accounts have a lower daily request quota than paid/donor tiers. If you are scanning a large library, consider spreading scans over multiple days or upgrading your Screenscraper membership to avoid hitting the quota.
+</Warning>
+
+---
+
+## MobyGames
+
+[MobyGames](https://www.mobygames.com/) is a community-maintained database with solid coverage of PC and older console titles. It complements IGDB by offering alternative descriptions, additional platform release information, genre tags, and user-contributed screenshots.
+
+**What it provides:** Game descriptions · Screenshots · Cover art · Release info · Genres · Moby score (critic aggregate) · Alternate titles · Platform lists
+
+### Getting credentials
+
+<Steps>
+  <Step title="Register at MobyGames">
+    Create a free account at [mobygames.com](https://www.mobygames.com).
+  </Step>
+  <Step title="Generate an API key">
+    Visit [mobygames.com/info/api](https://www.mobygames.com/info/api/) and follow the instructions to request or generate an API key.
+  </Step>
+</Steps>
+
+### Environment variables
+
+```bash
+MOBYGAMES_API_KEY=your_mobygames_api_key
+```
+
+---
+
+## SteamGridDB
+
+[SteamGridDB](https://www.steamgriddb.com/) is a community-run image repository that provides custom-made artwork grids, hero banners, logo overlays, and icons. It is primarily used by RomM to supply high-quality cover art alternatives when official sources do not have suitable artwork.
+
+**What it provides:** Custom cover grids · Hero banners · Transparent logos · Icons
+
+### Getting credentials
+
+<Steps>
+  <Step title="Create a SteamGridDB account">
+    Sign up at [steamgriddb.com](https://www.steamgriddb.com).
+  </Step>
+  <Step title="Generate an API key">
+    Navigate to [steamgriddb.com/profile/preferences/api](https://www.steamgriddb.com/profile/preferences/api) and generate a new API key.
+  </Step>
+</Steps>
+
+### Environment variables
+
+```bash
+STEAMGRIDDB_API_KEY=your_steamgriddb_api_key
+```
+
+---
+
+## RetroAchievements
+
+[RetroAchievements](https://retroachievements.org/) (RA) brings an achievement system to classic games played in emulators. RomM integrates with the RA API to display achievement lists on ROM detail pages, show user progress, and use RA's hash database for ROM identification.
+
+**What it provides:** Achievement lists · Achievement badge art · User progress tracking · Hash-based ROM identification · Release dates · Genres · Company credits
+
+### Getting credentials
+
+<Steps>
+  <Step title="Create a RetroAchievements account">
+    Register at [retroachievements.org](https://retroachievements.org).
+  </Step>
+  <Step title="Generate a Web API key">
+    Visit [retroachievements.org/settings](https://retroachievements.org/settings) and scroll to the **Keys** section to generate your Web API key.
+  </Step>
+</Steps>
+
+### Environment variables
+
+```bash
+RETROACHIEVEMENTS_API_KEY=your_ra_api_key
+REFRESH_RETROACHIEVEMENTS_CACHE_DAYS=30  # Re-fetch RA data every 30 days (default)
+```
+
+`REFRESH_RETROACHIEVEMENTS_CACHE_DAYS` controls how frequently RomM re-queries the RA API for updated achievement data on already-matched ROMs. Lower values keep achievement counts and user stats fresher at the cost of more API calls.
+
+---
+
+## Hasheous
+
+[Hasheous](https://hasheous.org/) is an open-source ROM hash lookup service that identifies ROMs by their file checksums against multiple reference databases: No-Intro, Redump, TOSEC, MAME, and more.
+
+**What it provides:** Hash-based ROM identification across No-Intro · Redump · TOSEC · MAME Arcade · MAME MESS · WHDLOAD · RetroAchievements · FBNeo · PureDOS databases
+
+### Enabling
+
+Hasheous does not require an API key — simply set the enable flag:
+
+```bash
+HASHEOUS_API_ENABLED=true
+```
+
+---
+
+## LaunchBox
+
+[LaunchBox](https://www.launchbox-app.com/) maintains a comprehensive metadata database for games across hundreds of platforms. When enabled, RomM downloads the LaunchBox database on a schedule and uses it as a metadata and artwork source during scans.
+
+**What it provides:** Game titles · Descriptions · Cover art · Screenshots · Release dates · Developer/publisher info
+
+### Enabling
+
+```bash
+LAUNCHBOX_API_ENABLED=true
+```
+
+RomM will automatically download the LaunchBox database on first use and refresh it according to the scheduled task cron:
+
+```bash
+ENABLE_SCHEDULED_UPDATE_LAUNCHBOX_METADATA=true
+SCHEDULED_UPDATE_LAUNCHBOX_METADATA_CRON=0 4 * * *  # 4:00 AM daily (default)
+```
+
+<Note>
+  The initial LaunchBox database download can be several hundred megabytes. Ensure adequate disk space under `ROMM_BASE_PATH`.
+</Note>
+
+---
+
+## HowLongToBeat
+
+[HowLongToBeat](https://howlongtobeat.com/) (HLTB) crowdsources game completion times. RomM uses HLTB data to display estimated completion times — main story, main + extras, completionist, and co-op/multiplayer — on ROM detail pages.
+
+**What it provides:** Main story completion time · Main + extras time · Completionist time · Co-op / multiplayer time
+
+### Enabling
+
+```bash
+HLTB_API_ENABLED=true
+```
+
+No API key is required.
+
+---
+
+## Flashpoint
+
+The [Flashpoint Project](https://flashpointarchive.org/) preserves web games (Flash, HTML5, Unity Web, Shockwave, and more). When enabled, RomM can pull metadata for Flashpoint-catalogued games.
+
+**What it provides:** Web game titles · Descriptions · Platform info · Developer/publisher · Series · Tags
+
+### Enabling
+
+```bash
+FLASHPOINT_API_ENABLED=true
+```
+
+No API key is required.
+
+---
+
+## TheGamesDB
+
+[TheGamesDB](https://thegamesdb.net/) (TGDB) is a community-maintained database that RomM can use for hash-based ROM lookups via its API.
+
+### Enabling
+
+```bash
+TGDB_API_ENABLED=true
+```
+
+No API key is required for the hash-lookup endpoint RomM uses.
+
+---
+
+## Metadata Priority
+
+When multiple providers are enabled, RomM uses the priority order defined in `config.yml` to decide which source wins. The first provider in the list that returns a result for a given field is used; subsequent providers fill in any remaining gaps.
+
+### Default metadata priority
+
+```yaml
+scan:
+  priority:
+    metadata:
+      - igdb        # Highest priority
+      - moby
+      - ss
+      - ra
+      - launchbox
+      - gamelist
+      - hasheous
+      - flashpoint
+      - hltb        # Lowest priority
+```
+
+### Default artwork priority
+
+```yaml
+scan:
+  priority:
+    artwork:
+      - igdb
+      - moby
+      - ss
+      - ra
+      - launchbox
+      - libretro
+      - gamelist
+      - hasheous
+      - flashpoint
+      - hltb
+```
+
+You can reorder these lists in your `config.yml` to promote a preferred provider. For example, if you want Screenscraper artwork to take precedence over IGDB for cover art:
+
+```yaml
+scan:
+  priority:
+    artwork:
+      - ss    # Screenscraper first
+      - igdb
+      - moby
+      - ra
+      - launchbox
+      - libretro
+      - gamelist
+      - hasheous
+      - flashpoint
+      - hltb
+```
+
+### Available media asset types
+
+The `scan.media` list in `config.yml` controls which asset types are actually downloaded. See the [Config File reference](/getting-started/config-file#scan-media) for the full list of available media types including `box2d`, `box3d`, `screenshot`, `title_screen`, `fanart`, `bezel`, `manual`, `video`, and more.
+
+<Note>
+  Providers that are not enabled (i.e., their environment variable is not set or their `_API_ENABLED` flag is `false`) are automatically skipped during priority evaluation — you do not need to remove them from the priority list in `config.yml`.
+</Note>

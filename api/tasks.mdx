@@ -1,0 +1,235 @@
+---
+title: "Tasks API: Trigger and Monitor Background Jobs"
+sidebarTitle: "Tasks"
+description: "REST endpoints for triggering background tasks in RomM: library scans, metadata updates, cleanup jobs, and scheduled task management."
+---
+
+RomM uses a Redis-backed RQ (Redis Queue) task queue to run background operations without blocking the API. The Tasks API lets you list available tasks, trigger them on demand, and inspect the status of running or completed jobs.
+
+<Note>
+  All Tasks API endpoints require the `tasks.run` scope, which is only available to admin users by default.
+</Note>
+
+---
+
+## GET /tasks
+
+List all available tasks grouped by type (scheduled, manual, and watcher). Returns task metadata — name, title, description, enabled status, and cron schedule — but not execution history.
+
+**Required scope:** `tasks.run`
+
+```bash
+curl http://localhost:8080/tasks \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response:**
+
+```json
+{
+  "scheduled": [
+    {
+      "name": "scan_library",
+      "type": "scan",
+      "title": "Scan Library",
+      "description": "...",
+      "enabled": true,
+      "manual_run": true,
+      "cron_string": "0 3 * * *"
+    },
+    ...
+  ],
+  "manual": [
+    {
+      "name": "cleanup_orphaned_resources",
+      "type": "cleanup",
+      ...
+    },
+    ...
+  ],
+  "watcher": [
+    {
+      "name": "filesystem_watcher",
+      "type": "watcher",
+      "title": "Rescan on filesystem change",
+      "enabled": false,
+      "manual_run": false,
+      "cron_string": ""
+    }
+  ]
+}
+```
+
+<ResponseField name="name" type="string">
+  Machine-readable task identifier used when triggering via `POST /tasks/run/{task_name}`.
+</ResponseField>
+
+<ResponseField name="type" type="string">
+  Task category: `scan`, `update`, `cleanup`, `conversion`, `sync`, `watcher`, or `generic`.
+</ResponseField>
+
+<ResponseField name="title" type="string">
+  Human-readable display name.
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  What the task does.
+</ResponseField>
+
+<ResponseField name="enabled" type="boolean">
+  Whether the task is active. Disabled tasks cannot be triggered.
+</ResponseField>
+
+<ResponseField name="manual_run" type="boolean">
+  Whether the task can be triggered via the API. Watcher tasks cannot be triggered manually.
+</ResponseField>
+
+<ResponseField name="cron_string" type="string">
+  Cron expression for scheduled tasks, or an empty string for manual-only tasks.
+</ResponseField>
+
+---
+
+## Available Tasks
+
+### Scheduled Tasks
+
+These run automatically on their cron schedule and can also be triggered manually:
+
+| Name | Type | Description |
+|---|---|---|
+| `scan_library` | `scan` | Scans the library filesystem and updates ROM metadata |
+| `update_launchbox_metadata` | `update` | Downloads the latest LaunchBox metadata database |
+| `update_switch_titledb` | `update` | Downloads the latest Nintendo Switch TitleDB |
+| `convert_images_to_webp` | `conversion` | Converts stored cover images to WebP format |
+
+### Manual Tasks
+
+These must be triggered explicitly and do not run on a schedule:
+
+| Name | Type | Description |
+|---|---|---|
+| `cleanup_orphaned_resources` | `cleanup` | Removes cover images and resources for ROMs/platforms no longer in the database |
+| `cleanup_missing_roms` | `cleanup` | Removes database entries for ROM files missing from the filesystem |
+| `sync_folder_scan` | `sync` | Synchronises the folder structure with the database |
+| `recompute_save_content_hashes` | `cleanup` | Recomputes content hashes for all save files |
+
+### Watcher Task
+
+| Name | Type | Description |
+|---|---|---|
+| `filesystem_watcher` | `watcher` | Automatically triggers a scan when a change is detected in the library path (enable with `ENABLE_RESCAN_ON_FILESYSTEM_CHANGE=true`, delay set by `RESCAN_ON_FILESYSTEM_CHANGE_DELAY`) |
+
+---
+
+## GET /tasks/status
+
+Get all active, queued, completed, and failed task jobs from all three priority queues.
+
+**Required scope:** `tasks.run`
+
+```bash
+curl http://localhost:8080/tasks/status \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response:** Array of `TaskStatusResponse` objects, sorted by start time descending.
+
+<ResponseField name="task_name" type="string">
+  Human-readable task name (from the job metadata or function name).
+</ResponseField>
+
+<ResponseField name="task_id" type="string">
+  Unique RQ job ID. Use this to query a specific job via `GET /tasks/{task_id}`.
+</ResponseField>
+
+<ResponseField name="task_type" type="string">
+  Task type: `scan`, `update`, `cleanup`, `conversion`, `sync`, `watcher`, or `generic`.
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  RQ job status: `queued`, `started`, `finished`, `failed`, `stopped`, or `canceled`.
+</ResponseField>
+
+<ResponseField name="meta" type="object">
+  Type-specific metadata. Shape depends on `task_type`:
+  - `scan` → `{ "scan_stats": {...} }`
+  - `update` → `{ "update_stats": {...} }`
+  - `cleanup` → `{ "cleanup_stats": {...} }`
+  - `conversion` → `{ "conversion_stats": {...} }`
+  - All others → `{}`
+</ResponseField>
+
+<ResponseField name="created_at" type="string | null">ISO 8601 job creation time.</ResponseField>
+<ResponseField name="enqueued_at" type="string | null">ISO 8601 time the job entered the queue.</ResponseField>
+<ResponseField name="started_at" type="string | null">ISO 8601 time the job started executing.</ResponseField>
+<ResponseField name="ended_at" type="string | null">ISO 8601 time the job finished (success or failure).</ResponseField>
+
+---
+
+## GET /tasks/{task_id}
+
+Retrieve the status of a specific task by its RQ job ID.
+
+**Required scope:** `tasks.run`
+
+<ParamField path="task_id" type="string" required>
+  The RQ job ID returned when the task was enqueued (from `POST /tasks/run/{task_name}`).
+</ParamField>
+
+```bash
+curl http://localhost:8080/tasks/abc123-def456 \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response:** A single `TaskStatusResponse` object. Returns `404` if the job ID is not found.
+
+<Note>
+  Completed job results are retained in Redis for a duration controlled by the `TASK_RESULT_TTL` environment variable (default: 300 seconds). After this TTL, the job record is removed and this endpoint will return `404`.
+</Note>
+
+---
+
+## POST /tasks/run/{task_name}
+
+Enqueue a task for immediate execution. Only tasks with `enabled: true` and `manual_run: true` can be triggered.
+
+**Required scope:** `tasks.run`
+
+<ParamField path="task_name" type="string" required>
+  The machine-readable task name (e.g. `scan_library`, `cleanup_orphaned_resources`). See the task table above for all valid names.
+</ParamField>
+
+<ParamField body="task_kwargs" type="object">
+  Optional keyword arguments forwarded to the task's `run()` method. Shape varies by task.
+</ParamField>
+
+```bash
+# Trigger a library scan
+curl -X POST http://localhost:8080/tasks/run/scan_library \
+  -H "Authorization: Bearer <token>"
+
+# Trigger a scan with optional kwargs
+curl -X POST http://localhost:8080/tasks/run/scan_library \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"platforms": ["gba", "n64"]}'
+```
+
+**Response:**
+
+```json
+{
+  "task_name": "Scan Library",
+  "task_id": "abc123-def456-...",
+  "status": "queued",
+  "created_at": "2024-01-15T10:00:00Z",
+  "enqueued_at": "2024-01-15T10:00:00Z"
+}
+```
+
+Use the returned `task_id` to poll `GET /tasks/{task_id}` for progress, or stream real-time progress via the `/ws` WebSocket endpoint.
+
+<Warning>
+  Tasks run in the background worker process. If no worker is running, jobs will remain `queued` indefinitely. Ensure the RomM worker container is up when triggering tasks.
+</Warning>

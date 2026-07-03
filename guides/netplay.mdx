@@ -1,0 +1,170 @@
+---
+title: "Real-Time Multiplayer Netplay in RomM"
+sidebarTitle: "Netplay"
+description: "Set up peer-to-peer netplay rooms in RomM to play retro games online with friends. Configure ICE servers and manage active rooms."
+---
+
+RomM's netplay feature lets you play retro games online with friends in real time. It uses WebRTC for peer-to-peer game data exchange, with RomM's own Socket.IO server acting as the **signaling layer** that helps players find each other and establish direct connections.
+
+## How It Works
+
+<Steps>
+  <Step title="Room creation">
+    The host player opens a ROM in the EmulatorJS player and creates a netplay room.
+    The room is registered in RomM's Redis-backed room store with a unique session ID,
+    a room name, an optional password, and a configurable player cap (default: 4).
+  </Step>
+  <Step title="Signaling">
+    RomM's Socket.IO endpoint at `/netplay/socket.io` acts as the signaling server.
+    It brokers the initial WebRTC handshake: players exchange ICE candidates, SDP
+    offers, and SDP answers through the server without any game data passing through it.
+  </Step>
+  <Step title="Peer-to-peer gameplay">
+    Once the WebRTC connection is established, game inputs, snapshots, and data
+    messages flow directly between players' browsers — the RomM server is no longer
+    in the data path.
+  </Step>
+  <Step title="Room teardown">
+    When all players leave or disconnect, the room is automatically deleted from
+    Redis. If the host leaves early, ownership is transferred to the next connected
+    player.
+  </Step>
+</Steps>
+
+<Warning>
+  Netplay works best with **low-latency connections**. High latency or packet loss
+  will cause noticeable input lag and desynchronization. For the best experience,
+  keep geographic distance between players minimal and use a wired connection where
+  possible.
+</Warning>
+
+## Enabling Netplay
+
+Netplay is disabled by default. Enable it under the `emulatorjs.netplay` key in
+your `config.yml`:
+
+```yaml
+emulatorjs:
+  netplay:
+    enabled: true
+```
+
+## Configuring ICE Servers
+
+WebRTC requires at least one **STUN** server to discover public IP addresses, and
+typically a **TURN** server to relay traffic when a direct peer-to-peer connection
+cannot be established (e.g. behind symmetric NAT).
+
+Configure your ICE servers under `emulatorjs.netplay.ice_servers`:
+
+```yaml
+emulatorjs:
+  netplay:
+    enabled: true
+    ice_servers:
+      - urls: "stun:stun.relay.metered.ca:80"
+      - urls: "turn:global.relay.metered.ca:80"
+        username: "<username>"
+        credential: "<password>"
+      - urls: "turns:global.relay.metered.ca:443"
+        username: "<username>"
+        credential: "<password>"
+```
+
+<Note>
+  In **restricted network environments** (corporate firewalls, carrier-grade NAT,
+  strict home routers), a direct peer-to-peer WebRTC connection often cannot be
+  formed without a TURN relay server. If players cannot connect to each other,
+  ensure you have a reachable TURN server configured. Free-tier TURN credentials
+  are available from providers such as
+  [Open Relay](https://www.metered.ca/tools/openrelay/).
+</Note>
+
+## Playing with Friends
+
+<Steps>
+  <Step title="Open a ROM">
+    Navigate to a game's detail page and click **Play** to launch the EmulatorJS
+    player.
+  </Step>
+  <Step title="Create a room">
+    Click the **Netplay** button in the player toolbar. Give the room a name and,
+    optionally, set a password to restrict who can join. The room is now listed
+    publicly for other users browsing the same ROM.
+  </Step>
+  <Step title="Share the room">
+    Send the session ID or room name to your friends. They open the same ROM, click
+    **Netplay**, and select your room from the list.
+  </Step>
+  <Step title="Join and play">
+    Once all players have joined, gameplay begins. Each player's inputs are exchanged
+    peer-to-peer via the established WebRTC data channels.
+  </Step>
+</Steps>
+
+<Note>
+  All players must have the **same ROM file** — specifically, files with matching
+  content hashes. RomM uses the content hash to verify compatibility before
+  allowing players to join a room.
+</Note>
+
+## Room Management API
+
+RomM exposes a REST endpoint to inspect currently open rooms for a given game.
+This is the same data the EmulatorJS player UI uses to populate the room list.
+
+### List open rooms
+
+```bash
+GET /api/netplay/list?game_id={rom_id}
+```
+
+Returns a map of `session_id → room_info` objects. Only rooms that are not yet
+full and belong to the requested game are included.
+
+**Example response:**
+
+```json
+{
+  "abc123": {
+    "room_name": "Mario Kart Friday Night",
+    "current": 2,
+    "max": 4,
+    "player_name": "alice",
+    "hasPassword": false
+  }
+}
+```
+
+| Field | Description |
+|---|---|
+| `room_name` | Human-readable name set by the room owner |
+| `current` | Number of players currently in the room |
+| `max` | Maximum number of players allowed (default: 4) |
+| `player_name` | Display name of the room owner |
+| `hasPassword` | Whether a password is required to join |
+
+## Socket.IO Events
+
+The real-time room lifecycle is managed over the Socket.IO endpoint at
+`/netplay/socket.io`. The table below describes the events your client or the
+EmulatorJS player exchanges with RomM's netplay server.
+
+| Event | Direction | Description |
+|---|---|---|
+| `open-room` | Client → Server | Create a new netplay room |
+| `join-room` | Client → Server | Join an existing room by session ID |
+| `leave-room` | Client → Server | Voluntarily leave the current room |
+| `users-updated` | Server → Room | Broadcast updated player list to all room members |
+| `webrtc-signal` | Client ↔ Server ↔ Client | Relay ICE candidates, SDP offers, and SDP answers |
+| `data-message` | Client → Room | Broadcast arbitrary game data to all other players |
+| `snapshot` | Client → Room | Broadcast a game state snapshot |
+| `input` | Client → Room | Broadcast controller input to all other players |
+| `disconnect` | Server | Player disconnected; room updated automatically |
+
+<Tip>
+  Rooms are stored in Redis and survive a RomM web-process restart as long as your
+  Redis/Valkey container keeps running. Players whose browsers stay connected will
+  remain in the room; players who disconnect will be removed automatically via the
+  `disconnect` handler.
+</Tip>

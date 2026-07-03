@@ -1,0 +1,465 @@
+---
+title: "RomM Environment Variable Reference"
+sidebarTitle: "Environment Variables"
+description: "Complete reference for all RomM environment variables: database, Redis, authentication, metadata providers, scanning, scheduling, and web server settings."
+---
+
+RomM is configured entirely through environment variables, which you can set directly in your `docker-compose.yml` file under the `environment:` key or in a separate `.env` file referenced by Docker Compose. The [`env.template`](https://github.com/rommapp/romm/blob/master/env.template) file in the RomM repository documents every available variable with inline comments and is the canonical reference for default values.
+
+## Core Application
+
+<ParamField query="ROMM_BASE_PATH" type="string" default="/romm">
+  Base folder path for the library, resources, and assets. All sub-paths (library, resources, assets) are derived from this value.
+</ParamField>
+
+<ParamField query="ROMM_TMP_PATH" type="string">
+  Custom temporary directory path. Defaults to the system temp directory when left unset.
+</ParamField>
+
+<ParamField query="ROMM_BASE_URL" type="string" default="http://0.0.0.0">
+  Public-facing URL of this RomM instance. Used when generating absolute links (e.g., OIDC redirects).
+</ParamField>
+
+<ParamField query="ROMM_PORT" type="integer" default="8080">
+  Port on which the application listens inside the container.
+</ParamField>
+
+<ParamField query="KIOSK_MODE" type="boolean" default="false">
+  Enables read-only mode. Intended for public displays or kiosks where users should not modify the library.
+</ParamField>
+
+---
+
+## Database
+
+<Note>
+  `DB_HOST`, `DB_USER`, and `DB_PASSWD` are required. RomM will not start without a reachable database.
+</Note>
+
+<ParamField query="DB_HOST" type="string" required>
+  Hostname of the database instance (e.g., `mariadb` when using the bundled Docker Compose stack).
+</ParamField>
+
+<ParamField query="DB_PORT" type="integer" default="3306">
+  Port number of the database instance.
+</ParamField>
+
+<ParamField query="DB_NAME" type="string" default="romm">
+  Database name. Should match the `MYSQL_DATABASE` (or `MARIADB_DATABASE`) value used when creating the database container.
+</ParamField>
+
+<ParamField query="DB_USER" type="string" required>
+  Database username. Should match the `MARIADB_USER` value in the MariaDB/MySQL container.
+</ParamField>
+
+<ParamField query="DB_PASSWD" type="string" required>
+  Database password. Should match the `MARIADB_PASSWORD` value in the MariaDB/MySQL container.
+</ParamField>
+
+<ParamField query="DB_ROOT_PASSWD" type="string">
+  Root user password for the database. Only consumed by the bundled MariaDB container — not used by RomM itself.
+</ParamField>
+
+<ParamField query="ROMM_DB_DRIVER" type="string" default="mariadb">
+  Database driver. Accepted values: `mariadb`, `mysql`, `postgresql`.
+</ParamField>
+
+<ParamField query="DB_QUERY_JSON" type="string">
+  Extra query parameters for the database connection URL, expressed as a JSON object (e.g., `{"charset": "utf8mb4"}`).
+</ParamField>
+
+---
+
+## Redis / Valkey
+
+<ParamField query="REDIS_HOST" type="string" default="127.0.0.1">
+  Hostname of the Redis or Valkey instance used for caching and task queuing.
+</ParamField>
+
+<ParamField query="REDIS_PORT" type="integer" default="6379">
+  Port number of the Redis/Valkey instance.
+</ParamField>
+
+<ParamField query="REDIS_USERNAME" type="string">
+  Username for Redis/Valkey authentication (ACL-based auth). Leave empty for password-only auth.
+</ParamField>
+
+<ParamField query="REDIS_PASSWORD" type="string">
+  Password for the Redis/Valkey instance.
+</ParamField>
+
+<ParamField query="REDIS_DB" type="integer" default="0">
+  Redis/Valkey logical database index.
+</ParamField>
+
+<ParamField query="REDIS_SSL" type="boolean" default="false">
+  Enable TLS (`rediss://`) for the Redis/Valkey connection.
+</ParamField>
+
+---
+
+## Authentication
+
+<Note>
+  `ROMM_AUTH_SECRET_KEY` is required. Generate a strong value with `openssl rand -hex 32` and keep it secret — rotating this key will invalidate all active sessions.
+</Note>
+
+<ParamField query="ROMM_AUTH_SECRET_KEY" type="string" required>
+  Application secret used to sign tokens and sessions. Generate with `openssl rand -hex 32`.
+</ParamField>
+
+<ParamField query="OAUTH_ACCESS_TOKEN_EXPIRE_SECONDS" type="integer" default="1800">
+  OAuth2 access token lifetime in seconds (default: 30 minutes).
+</ParamField>
+
+<ParamField query="OAUTH_REFRESH_TOKEN_EXPIRE_SECONDS" type="integer" default="604800">
+  OAuth2 refresh token lifetime in seconds (default: 7 days).
+</ParamField>
+
+<ParamField query="SESSION_MAX_AGE_SECONDS" type="integer" default="1209600">
+  Maximum age of a browser session in seconds (default: 14 days).
+</ParamField>
+
+<ParamField query="INVITE_TOKEN_EXPIRY_SECONDS" type="integer" default="600">
+  Lifetime of user invite tokens in seconds (default: 10 minutes).
+</ParamField>
+
+<ParamField query="DISABLE_DOWNLOAD_ENDPOINT_AUTH" type="boolean" default="false">
+  Disable authentication on the download endpoint. Required for certain integrations such as WebRcade and Tinfoil that cannot pass credentials.
+</ParamField>
+
+<ParamField query="DISABLE_CSRF_PROTECTION" type="boolean" default="false">
+  Disable CSRF protection. **Not recommended** unless you understand the security implications.
+</ParamField>
+
+<ParamField query="DISABLE_USERPASS_LOGIN" type="boolean" default="false">
+  Hide the username/password login form. Use when relying exclusively on OIDC so local login cannot be used as a fallback.
+</ParamField>
+
+<ParamField query="DISABLE_SETUP_WIZARD" type="boolean" default="false">
+  Skip the first-boot setup wizard. Useful when deploying RomM non-interactively with a pre-configured environment.
+</ParamField>
+
+<ParamField query="DISABLE_LOGS_VIEWER" type="boolean" default="false">
+  Disable the backend log viewer in the RomM UI.
+</ParamField>
+
+---
+
+## OpenID Connect (OIDC)
+
+<Note>
+  OIDC support lets you delegate authentication to an external identity provider (e.g., Authentik, Keycloak, Authelia). At minimum you need `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, and `OIDC_SERVER_METADATA_URL`.
+</Note>
+
+<ParamField query="OIDC_ENABLED" type="boolean" default="false">
+  Enable OpenID Connect authentication.
+</ParamField>
+
+<ParamField query="OIDC_AUTOLOGIN" type="boolean" default="false">
+  Skip the OIDC button on the login page and automatically redirect users to the identity provider.
+</ParamField>
+
+<ParamField query="OIDC_ALLOW_REGISTRATION" type="boolean" default="true">
+  Automatically create a new RomM account for users on their first successful OIDC login.
+</ParamField>
+
+<ParamField query="OIDC_PROVIDER" type="string">
+  Display name of the OIDC provider shown on the login page (e.g., `Authentik`).
+</ParamField>
+
+<ParamField query="OIDC_CLIENT_ID" type="string">
+  Client ID issued by the OIDC provider.
+</ParamField>
+
+<ParamField query="OIDC_CLIENT_SECRET" type="string">
+  Client secret issued by the OIDC provider.
+</ParamField>
+
+<ParamField query="OIDC_REDIRECT_URI" type="string">
+  Absolute redirect URI registered with the OIDC provider (e.g., `https://romm.example.com/api/oauth/openid`).
+</ParamField>
+
+<ParamField query="OIDC_SERVER_APPLICATION_URL" type="string">
+  Absolute URL of the OIDC server application. Used to construct provider URLs when `OIDC_SERVER_METADATA_URL` is not set.
+</ParamField>
+
+<ParamField query="OIDC_SERVER_METADATA_URL" type="string">
+  URL to the OIDC provider's discovery / metadata endpoint (e.g., `https://auth.example.com/application/o/romm/.well-known/openid-configuration`).
+</ParamField>
+
+<ParamField query="OIDC_CLAIM_ROLES" type="string">
+  Name of the OIDC claim that carries role information (e.g., `groups`).
+</ParamField>
+
+<ParamField query="OIDC_ROLE_VIEWER" type="string">
+  Role value in the OIDC claim that maps to the **viewer** permission level.
+</ParamField>
+
+<ParamField query="OIDC_ROLE_EDITOR" type="string">
+  Role value in the OIDC claim that maps to the **editor** permission level.
+</ParamField>
+
+<ParamField query="OIDC_ROLE_ADMIN" type="string">
+  Role value in the OIDC claim that maps to the **admin** permission level.
+</ParamField>
+
+<ParamField query="OIDC_TLS_CACERTFILE" type="string">
+  Path to a PEM file containing trusted CA certificates, for when your OIDC provider uses a private or self-signed TLS certificate.
+</ParamField>
+
+<ParamField query="OIDC_USERNAME_ATTRIBUTE" type="string" default="preferred_username">
+  The attribute from the OIDC user-info response used as the RomM username.
+</ParamField>
+
+<ParamField query="OIDC_RP_INITIATED_LOGOUT" type="boolean" default="false">
+  Enable the RP-initiated logout flow so that logging out of RomM also ends the session at the identity provider.
+</ParamField>
+
+<ParamField query="OIDC_END_SESSION_ENDPOINT" type="string">
+  Override URL for the OIDC end-session endpoint (used by RP-initiated logout when the provider does not advertise it in metadata).
+</ParamField>
+
+---
+
+## Metadata Providers
+
+<ParamField query="IGDB_CLIENT_ID" type="string">
+  Client ID for the IGDB API. Obtain from the [Twitch developer console](https://dev.twitch.tv/console).
+</ParamField>
+
+<ParamField query="IGDB_CLIENT_SECRET" type="string">
+  Client secret for the IGDB API (paired with `IGDB_CLIENT_ID`).
+</ParamField>
+
+<ParamField query="MOBYGAMES_API_KEY" type="string">
+  Secret API key for the MobyGames API. Generate one at [mobygames.com](https://www.mobygames.com/info/api/).
+</ParamField>
+
+<ParamField query="SCREENSCRAPER_USER" type="string">
+  Screenscraper username. Register at [screenscraper.fr](https://www.screenscraper.fr).
+</ParamField>
+
+<ParamField query="SCREENSCRAPER_PASSWORD" type="string">
+  Screenscraper password (paired with `SCREENSCRAPER_USER`).
+</ParamField>
+
+<ParamField query="STEAMGRIDDB_API_KEY" type="string">
+  Secret API key for SteamGridDB. Generate one in your [SteamGridDB account preferences](https://www.steamgriddb.com/profile/preferences/api).
+</ParamField>
+
+<ParamField query="RETROACHIEVEMENTS_API_KEY" type="string">
+  Secret API key for RetroAchievements. Generate one at [retroachievements.org/settings](https://retroachievements.org/settings).
+</ParamField>
+
+<ParamField query="REFRESH_RETROACHIEVEMENTS_CACHE_DAYS" type="integer" default="30">
+  How often (in days) to refresh the cached RetroAchievements metadata for each ROM.
+</ParamField>
+
+<ParamField query="PLAYMATCH_API_ENABLED" type="boolean" default="false">
+  Enable the PlayMatch API integration for ROM identification.
+</ParamField>
+
+<ParamField query="LAUNCHBOX_API_ENABLED" type="boolean" default="false">
+  Enable the LaunchBox metadata integration. When enabled, RomM downloads and updates the LaunchBox database on a scheduled basis.
+</ParamField>
+
+<ParamField query="HASHEOUS_API_ENABLED" type="boolean" default="false">
+  Enable the Hasheous API for hash-based ROM identification. No API key required.
+</ParamField>
+
+<ParamField query="FLASHPOINT_API_ENABLED" type="boolean" default="false">
+  Enable the Flashpoint Project API for web-game metadata.
+</ParamField>
+
+<ParamField query="HLTB_API_ENABLED" type="boolean" default="false">
+  Enable the HowLongToBeat API for game completion-time data.
+</ParamField>
+
+<ParamField query="TGDB_API_ENABLED" type="boolean" default="false">
+  Enable the TheGamesDB API integration.
+</ParamField>
+
+---
+
+## Scans & Tasks
+
+<ParamField query="SCAN_TIMEOUT" type="integer" default="14400">
+  Timeout for background scan/rescan tasks in seconds (default: 4 hours).
+</ParamField>
+
+<ParamField query="SCAN_WORKERS" type="integer" default="1">
+  Number of worker processes dedicated to scanning tasks.
+</ParamField>
+
+<ParamField query="TASK_TIMEOUT" type="integer" default="300">
+  Timeout for non-scan background tasks in seconds (default: 5 minutes).
+</ParamField>
+
+<ParamField query="TASK_RESULT_TTL" type="integer" default="86400">
+  How long to retain task results in Valkey/Redis in seconds (default: 24 hours).
+</ParamField>
+
+<ParamField query="SEVEN_ZIP_TIMEOUT" type="integer" default="60">
+  Timeout for individual 7-Zip operations in seconds.
+</ParamField>
+
+<ParamField query="ENABLE_RESCAN_ON_FILESYSTEM_CHANGE" type="boolean" default="false">
+  Automatically trigger a library rescan when the filesystem detects changes inside the ROMs folder.
+</ParamField>
+
+<ParamField query="RESCAN_ON_FILESYSTEM_CHANGE_DELAY" type="integer" default="5">
+  Delay in minutes to wait after a filesystem change before starting the rescan (debounce).
+</ParamField>
+
+<ParamField query="ENABLE_SCHEDULED_RESCAN" type="boolean" default="false">
+  Enable a cron-based scheduled library rescan.
+</ParamField>
+
+<ParamField query="SCHEDULED_RESCAN_CRON" type="string" default="0 3 * * *">
+  Cron expression controlling when scheduled rescans run (default: 3:00 AM daily).
+</ParamField>
+
+<ParamField query="ENABLE_SCHEDULED_UPDATE_SWITCH_TITLEDB" type="boolean" default="false">
+  Enable a scheduled task to update the Nintendo Switch TitleDB index used for ROM matching.
+</ParamField>
+
+<ParamField query="SCHEDULED_UPDATE_SWITCH_TITLEDB_CRON" type="string" default="0 4 * * *">
+  Cron expression for scheduled Switch TitleDB updates (default: 4:00 AM daily).
+</ParamField>
+
+<ParamField query="ENABLE_SCHEDULED_UPDATE_LAUNCHBOX_METADATA" type="boolean" default="false">
+  Enable a scheduled task to download and update the LaunchBox metadata database.
+</ParamField>
+
+<ParamField query="SCHEDULED_UPDATE_LAUNCHBOX_METADATA_CRON" type="string" default="0 4 * * *">
+  Cron expression for scheduled LaunchBox metadata updates (default: 4:00 AM daily).
+</ParamField>
+
+<ParamField query="ENABLE_SCHEDULED_CONVERT_IMAGES_TO_WEBP" type="boolean" default="false">
+  Enable a scheduled task to convert all cached artwork to WebP format to reduce disk usage.
+</ParamField>
+
+<ParamField query="SCHEDULED_CONVERT_IMAGES_TO_WEBP_CRON" type="string" default="0 4 * * *">
+  Cron expression for scheduled WebP image conversion (default: 4:00 AM daily).
+</ParamField>
+
+<ParamField query="ENABLE_SCHEDULED_RETROACHIEVEMENTS_PROGRESS_SYNC" type="boolean" default="false">
+  Enable scheduled syncing of user RetroAchievements progress.
+</ParamField>
+
+<ParamField query="SCHEDULED_RETROACHIEVEMENTS_PROGRESS_SYNC_CRON" type="string" default="0 4 * * *">
+  Cron expression for scheduled RetroAchievements progress sync (default: 4:00 AM daily).
+</ParamField>
+
+---
+
+## Sync
+
+<ParamField query="ENABLE_SYNC_FOLDER_WATCHER" type="boolean" default="false">
+  Watch the sync folder and trigger a scan automatically when changes are detected.
+</ParamField>
+
+<ParamField query="SYNC_FOLDER_SCAN_DELAY" type="integer" default="2">
+  Delay in minutes before scanning after a sync folder change (debounce).
+</ParamField>
+
+<ParamField query="ENABLE_SYNC_PUSH_PULL" type="boolean" default="false">
+  Enable scheduled sync push/pull operations.
+</ParamField>
+
+<ParamField query="SYNC_PUSH_PULL_CRON" type="string" default="*/30 * * * *">
+  Cron expression for scheduled sync push/pull (default: every 30 minutes).
+</ParamField>
+
+<ParamField query="SYNC_SSH_KEYS_PATH" type="string" default="$ROMM_BASE_PATH/sync/keys">
+  Path to SSH keys used for sync remotes.
+</ParamField>
+
+<ParamField query="SYNC_SSH_KNOWN_HOSTS_PATH" type="string" default="$ROMM_BASE_PATH/sync/known_hosts">
+  Path to the SSH `known_hosts` file for sync remotes.
+</ParamField>
+
+---
+
+## Emulation
+
+<ParamField query="DISABLE_EMULATOR_JS" type="boolean" default="false">
+  Disable in-browser ROM playback via EmulatorJS.
+</ParamField>
+
+<ParamField query="DISABLE_RUFFLE_RS" type="boolean" default="false">
+  Disable in-browser Flash playback via RuffleRS.
+</ParamField>
+
+---
+
+## Integrations
+
+<ParamField query="YOUTUBE_BASE_URL" type="string" default="https://www.youtube.com">
+  Base URL for YouTube video links. Override with an alternate frontend such as [Piped](https://piped.video) or [Invidious](https://invidious.io) (e.g., `https://piped.video`).
+</ParamField>
+
+<ParamField query="TINFOIL_WELCOME_MESSAGE" type="string" default="RomM Switch Library">
+  Welcome message displayed in Tinfoil Nintendo Switch clients when browsing the RomM library.
+</ParamField>
+
+---
+
+## Web Server
+
+<ParamField query="WEB_SERVER_CONCURRENCY" type="integer" default="1">
+  Number of Gunicorn worker processes. The recommended formula is `2 × CPU cores + 1`.
+</ParamField>
+
+<ParamField query="WEB_SERVER_TIMEOUT" type="integer" default="300">
+  Request timeout for the web server in seconds.
+</ParamField>
+
+<ParamField query="WEB_SERVER_KEEPALIVE" type="integer" default="2">
+  Keep-Alive connection wait time in seconds.
+</ParamField>
+
+<ParamField query="WEB_SERVER_MAX_REQUESTS" type="integer" default="1000">
+  Maximum number of requests a worker processes before it is automatically restarted (helps prevent memory leaks).
+</ParamField>
+
+<ParamField query="WEB_SERVER_WORKER_CONNECTIONS" type="integer" default="1000">
+  Maximum number of simultaneous clients per worker process.
+</ParamField>
+
+<ParamField query="IPV4_ONLY" type="boolean" default="false">
+  Bind the web server to IPv4 addresses only (disables IPv6 socket binding).
+</ParamField>
+
+---
+
+## Proxy
+
+<ParamField query="HTTP_PROXY" type="string">
+  HTTP proxy URL for outbound requests made by RomM (e.g., `http://proxy.example.com:3128`).
+</ParamField>
+
+<ParamField query="HTTPS_PROXY" type="string">
+  HTTPS proxy URL for outbound requests (e.g., `http://proxy.example.com:3128`).
+</ParamField>
+
+<ParamField query="NO_PROXY" type="string">
+  Comma-separated list of hostnames or IP addresses that should bypass the configured proxy.
+</ParamField>
+
+---
+
+## Logging
+
+<ParamField query="LOGLEVEL" type="string" default="INFO">
+  Application log level. Accepted values: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`.
+</ParamField>
+
+<ParamField query="FORCE_COLOR" type="boolean" default="false">
+  Force ANSI color codes in log output even when the terminal does not advertise color support.
+</ParamField>
+
+<ParamField query="NO_COLOR" type="boolean" default="false">
+  Disable ANSI color codes in log output entirely.
+</ParamField>

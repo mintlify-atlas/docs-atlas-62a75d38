@@ -1,0 +1,343 @@
+---
+title: "Saves and States API: Manage Game Progress Files"
+sidebarTitle: "Saves & States"
+description: "REST endpoints for uploading, listing, downloading, and deleting save files and save states in RomM."
+---
+
+RomM stores save files and save states server-side, making your game progress accessible from any device. The Saves API manages `.sav` and related files created by emulators during gameplay, while the States API manages full save-state snapshots (emulator memory dumps). Both support optional screenshot attachments and device-based sync tracking.
+
+---
+
+## Save Files
+
+### POST /saves
+
+Upload a save file for a ROM. Accepts `multipart/form-data`.
+
+**Required scope:** `assets.write`
+
+<ParamField query="rom_id" type="integer" required>
+  Internal ID of the ROM this save belongs to.
+</ParamField>
+
+<ParamField query="emulator" type="string">
+  Emulator identifier (e.g. `mgba`, `snes9x`). Used to organise saves by emulator.
+</ParamField>
+
+<ParamField query="slot" type="string">
+  Save slot label (e.g. `slot1`, `auto`). When set, RomM appends a datetime tag to the filename so multiple saves per slot are preserved.
+</ParamField>
+
+<ParamField query="device_id" type="string">
+  Device UUID to associate with this upload. Requires `devices.write` scope. Enables sync-conflict detection.
+</ParamField>
+
+<ParamField query="session_id" type="integer">
+  Sync session ID for operation counting.
+</ParamField>
+
+<ParamField query="overwrite" type="boolean" default="false">
+  When `true`, skips conflict detection and overwrites the existing save unconditionally.
+</ParamField>
+
+<ParamField query="autocleanup" type="boolean" default="false">
+  When `true`, automatically deletes old saves beyond `autocleanup_limit` in the same slot.
+</ParamField>
+
+<ParamField query="autocleanup_limit" type="integer" default="10">
+  Maximum number of saves to keep per slot when `autocleanup=true`.
+</ParamField>
+
+<ParamField body="saveFile" type="file" required>
+  The save file to upload.
+</ParamField>
+
+<ParamField body="screenshotFile" type="file">
+  Optional screenshot to associate with this save (shown in the continue-playing rail).
+</ParamField>
+
+```bash
+curl -X POST "http://localhost:8080/saves?rom_id=42&emulator=mgba&slot=slot1" \
+  -H "Authorization: Bearer <token>" \
+  -F "saveFile=@/path/to/save.sav"
+```
+
+**Response:** `SaveSchema` object.
+
+<ResponseField name="id" type="integer">Internal save ID.</ResponseField>
+<ResponseField name="rom_id" type="integer">Associated ROM ID.</ResponseField>
+<ResponseField name="user_id" type="integer">Owner user ID.</ResponseField>
+<ResponseField name="file_name" type="string">Stored filename (may include datetime tag for slot saves).</ResponseField>
+<ResponseField name="file_path" type="string">Directory path on the server.</ResponseField>
+<ResponseField name="file_size_bytes" type="integer">File size in bytes.</ResponseField>
+<ResponseField name="emulator" type="string | null">Emulator the save was created with.</ResponseField>
+<ResponseField name="slot" type="string | null">Slot label.</ResponseField>
+<ResponseField name="content_hash" type="string | null">Hash of the file content for deduplication.</ResponseField>
+<ResponseField name="is_public" type="boolean">Whether the save is publicly downloadable.</ResponseField>
+<ResponseField name="device_syncs" type="array">List of device sync records showing which devices have this save and whether they are current.</ResponseField>
+<ResponseField name="created_at" type="string">ISO 8601 creation timestamp.</ResponseField>
+<ResponseField name="updated_at" type="string">ISO 8601 last-updated timestamp.</ResponseField>
+
+<Note>
+  When `device_id` is provided and the slot already contains a newer save since the device's last sync, the upload is rejected with `409 Conflict` to prevent overwriting progress. Pass `overwrite=true` to bypass this guard.
+</Note>
+
+---
+
+### GET /saves
+
+List save files for the current user.
+
+**Required scope:** `assets.read`
+
+<ParamField query="rom_id" type="integer">Filter to saves for a specific ROM.</ParamField>
+<ParamField query="platform_id" type="integer">Filter to saves for all ROMs on a platform.</ParamField>
+<ParamField query="device_id" type="string">Filter with device sync information. Requires `devices.read` scope.</ParamField>
+<ParamField query="slot" type="string">Filter to a specific save slot.</ParamField>
+
+```bash
+curl "http://localhost:8080/saves?rom_id=42" \
+  -H "Authorization: Bearer <token>"
+```
+
+---
+
+### GET /saves/identifiers
+
+Retrieve only the IDs of the current user's saves.
+
+**Required scope:** `assets.read`
+
+---
+
+### GET /saves/summary
+
+Retrieve a summary of saves for a ROM, grouped by slot.
+
+**Required scope:** `assets.read`
+
+<ParamField query="rom_id" type="integer" required>ROM internal ID.</ParamField>
+
+```bash
+curl "http://localhost:8080/saves/summary?rom_id=42" \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response:**
+
+```json
+{
+  "total_count": 5,
+  "slots": [
+    { "slot": "slot1", "count": 3, "latest": { ... } },
+    { "slot": null, "count": 2, "latest": { ... } }
+  ]
+}
+```
+
+---
+
+### GET /saves/{id}
+
+Retrieve a single save by ID.
+
+**Required scope:** `assets.read`
+
+<ParamField path="id" type="integer" required>Save internal ID.</ParamField>
+<ParamField query="device_id" type="string">Include device sync information. Requires `devices.read` scope.</ParamField>
+
+---
+
+### GET /saves/{id}/content
+
+Download a save file. The owner can download any of their saves. Other authenticated users can only download saves marked `is_public=true`.
+
+**Required scope:** `assets.read`
+
+<ParamField path="id" type="integer" required>Save internal ID.</ParamField>
+<ParamField query="device_id" type="string">Device ID — records an optimistic sync timestamp on download. Requires `devices.read` scope.</ParamField>
+<ParamField query="session_id" type="integer">Sync session ID for operation counting.</ParamField>
+<ParamField query="optimistic" type="boolean" default="true">When `true` and a device is provided, marks the save as synced on download.</ParamField>
+
+```bash
+curl "http://localhost:8080/saves/10/content" \
+  -H "Authorization: Bearer <token>" \
+  -o save.sav
+```
+
+---
+
+### PUT /saves/{id}
+
+Update a save file's content or replace its associated screenshot.
+
+**Required scope:** `assets.write`
+
+<ParamField path="id" type="integer" required>Save internal ID.</ParamField>
+<ParamField query="device_id" type="string">Device ID for sync tracking. Requires `devices.write` scope.</ParamField>
+<ParamField body="saveFile" type="file">Replacement save file.</ParamField>
+<ParamField body="screenshotFile" type="file">Replacement screenshot.</ParamField>
+
+---
+
+### PUT /saves/{id}/visibility
+
+Toggle a save's public/private visibility. Owner only.
+
+**Required scope:** `assets.write`
+
+<ParamField path="id" type="integer" required>Save internal ID.</ParamField>
+<ParamField body="is_public" type="boolean" required>New visibility state.</ParamField>
+
+```bash
+curl -X PUT http://localhost:8080/saves/10/visibility \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"is_public": true}'
+```
+
+---
+
+### POST /saves/delete
+
+Delete one or more saves and their associated screenshot files.
+
+**Required scope:** `assets.write`
+
+<ParamField body="saves" type="integer[]" required>List of save IDs to delete.</ParamField>
+
+```bash
+curl -X POST http://localhost:8080/saves/delete \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"saves": [10, 11]}'
+```
+
+**Response:** Array of deleted save IDs.
+
+---
+
+### POST /saves/{id}/downloaded
+
+Confirm that a save was successfully downloaded by a device (non-optimistic sync confirmation).
+
+**Required scope:** `devices.write`
+
+<ParamField path="id" type="integer" required>Save internal ID.</ParamField>
+<ParamField body="device_id" type="string" required>Device UUID confirming the download.</ParamField>
+
+---
+
+### POST /saves/{id}/track / POST /saves/{id}/untrack
+
+Enable or disable sync tracking for a save on a specific device.
+
+**Required scope:** `devices.write`
+
+<ParamField path="id" type="integer" required>Save internal ID.</ParamField>
+<ParamField body="device_id" type="string" required>Device UUID.</ParamField>
+
+---
+
+## Save States
+
+Save states are full emulator memory snapshots. The States API mirrors the Saves API in structure but without slot or sync-conflict logic.
+
+### POST /states
+
+Upload a save state for a ROM.
+
+**Required scope:** `assets.write`
+
+<ParamField query="rom_id" type="integer" required>ROM internal ID.</ParamField>
+<ParamField query="emulator" type="string">Emulator identifier.</ParamField>
+<ParamField body="stateFile" type="file" required>Save state file to upload.</ParamField>
+<ParamField body="screenshotFile" type="file">Optional screenshot.</ParamField>
+
+```bash
+curl -X POST "http://localhost:8080/states?rom_id=42&emulator=mgba" \
+  -H "Authorization: Bearer <token>" \
+  -F "stateFile=@/path/to/state.state"
+```
+
+**Response:** `StateSchema` object.
+
+<ResponseField name="id" type="integer">Internal state ID.</ResponseField>
+<ResponseField name="rom_id" type="integer">Associated ROM ID.</ResponseField>
+<ResponseField name="user_id" type="integer">Owner user ID.</ResponseField>
+<ResponseField name="file_name" type="string">Stored filename.</ResponseField>
+<ResponseField name="file_size_bytes" type="integer">File size in bytes.</ResponseField>
+<ResponseField name="emulator" type="string | null">Emulator the state was created with.</ResponseField>
+<ResponseField name="is_public" type="boolean">Whether the state is publicly downloadable.</ResponseField>
+<ResponseField name="created_at" type="string">ISO 8601 creation timestamp.</ResponseField>
+<ResponseField name="updated_at" type="string">ISO 8601 last-updated timestamp.</ResponseField>
+
+---
+
+### GET /states
+
+List save states for the current user.
+
+**Required scope:** `assets.read`
+
+<ParamField query="rom_id" type="integer">Filter to states for a specific ROM.</ParamField>
+<ParamField query="platform_id" type="integer">Filter to states for all ROMs on a platform.</ParamField>
+
+---
+
+### GET /states/identifiers
+
+Retrieve only the IDs of the current user's save states. **Required scope:** `assets.read`
+
+---
+
+### GET /states/{id}
+
+Retrieve a single save state by ID. **Required scope:** `assets.read`
+
+---
+
+### GET /states/{id}/content
+
+Download a save state file. Owner downloads any; others only download public states.
+
+**Required scope:** `assets.read`
+
+```bash
+curl "http://localhost:8080/states/5/content" \
+  -H "Authorization: Bearer <token>" \
+  -o game.state
+```
+
+---
+
+### PUT /states/{id}
+
+Update a save state's content or screenshot. **Required scope:** `assets.write`
+
+---
+
+### PUT /states/{id}/visibility
+
+Toggle a state's public/private visibility (owner only). **Required scope:** `assets.write`
+
+<ParamField body="is_public" type="boolean" required>New visibility state.</ParamField>
+
+---
+
+### POST /states/delete
+
+Delete one or more save states.
+
+**Required scope:** `assets.write`
+
+<ParamField body="states" type="integer[]" required>List of state IDs to delete.</ParamField>
+
+```bash
+curl -X POST http://localhost:8080/states/delete \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"states": [5, 6]}'
+```
+
+**Response:** Array of deleted state IDs.

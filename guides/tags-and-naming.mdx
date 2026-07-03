@@ -1,0 +1,164 @@
+---
+title: "ROM Filename Tags and Naming Conventions"
+sidebarTitle: "Tags & Naming"
+description: "Understand how RomM parses region codes, revision numbers, and special flags from ROM filenames to enable filtering and proper metadata matching."
+---
+
+RomM parses structured tags embedded in ROM filenames following the No-Intro and Redump naming conventions. Tags enclosed in parentheses `()` carry semantic meaning — region codes, revision markers, language indicators, and special status flags — while tags enclosed in square brackets `[]` carry GoodTools-style quality flags. During a scan RomM extracts these tags and stores them as structured fields (`regions`, `languages`, `revision`, `tags`) on the ROM record, where they influence metadata matching, artwork selection, and UI filtering.
+
+## Tag Syntax Overview
+
+ROM filenames conventionally follow this pattern:
+
+```
+Game Title (Region) (Rev X) (Language Codes) [GoodTools Flags].ext
+```
+
+RomM's tag parser (`FSRomsHandler.parse_tags`) splits all `(...)` and `[...]` blocks, then classifies each chunk as a region, language, version, revision, or a generic "other" tag.
+
+## Region Codes
+
+Region codes in parentheses identify the market a ROM was released for. They affect which regional artwork and game description RomM requests from IGDB and ScreenScraper.
+
+| Tag | Region |
+|---|---|
+| `(USA)` | United States |
+| `(Europe)` | Europe |
+| `(Japan)` | Japan |
+| `(World)` | Multi-region / worldwide release |
+| `(Australia)` | Australia |
+| `(Korea)` | South Korea |
+| `(China)` | China |
+| `(Brazil)` | Brazil |
+| `(Germany)` | Germany |
+| `(France)` | France |
+| `(Spain)` | Spain |
+| `(Italy)` | Italy |
+
+Multiple regions can appear together, separated by commas within a single tag pair:
+
+```
+Pokémon Red Version (USA, Europe) (SGB Enhanced).gb
+```
+
+## Revision and Version Tags
+
+Revision and version tags identify dumps of a game that received post-release corrections or re-releases.
+
+| Tag | Meaning |
+|---|---|
+| `(Rev 1)`, `(Rev A)` | Board or cartridge revision |
+| `(v1.1)`, `(v2.0)` | Software version number |
+| `(Beta)` | Pre-release beta build |
+| `(Proto)` | Prototype / unreleased build |
+| `(Demo)` | Playable demo |
+| `(Sample)` | Press / trade-show sample |
+| `(Unl)` | Unlicensed release |
+
+RomM stores revision values in the dedicated `revision` column and version values in the `version` column, allowing you to filter and sort your library by revision.
+
+## Language Tags
+
+Multi-language releases list the supported languages as comma-separated two-letter codes inside a single tag:
+
+| Tag | Languages |
+|---|---|
+| `(En)` | English only |
+| `(En,Fr,De)` | English, French, German |
+| `(Ja)` | Japanese only |
+| `(En,Es,It,Fr,De,Pt)` | Six-language European release |
+
+RomM maps the two-letter codes to full language names and stores them in the `languages` array on the ROM record.
+
+## GoodTools Flags
+
+GoodTools flags in square brackets describe the quality or nature of the ROM dump:
+
+| Tag | Meaning |
+|---|---|
+| `[!]` | Verified good dump — the preferred file to keep |
+| `[a]` | Alternate dump (different but equivalent binary) |
+| `[b]` | Bad dump (known to be corrupt) |
+| `[h]` | Hacked ROM |
+| `[o]` | Overdump (extra data beyond the actual ROM) |
+| `[T+]` | Fan translation patch applied |
+| `[T-]` | Incomplete fan translation |
+| `[f]` | Fixed (minor byte correction applied) |
+| `[p]` | Pirate (unofficial reproduction) |
+
+These flags are stored in the `tags` array on the ROM record and are surfaced in the UI as filterable badges.
+
+## Other Common Tags
+
+| Tag | Meaning |
+|---|---|
+| `(SGB Enhanced)` | Super Game Boy border and palette data present |
+| `(GBC)` | Game Boy Color enhanced mode |
+| `(Virtual Console)` | Virtual Console re-release |
+| `(GameCube)` | Bonus disc released with GameCube hardware |
+| `(Disc 1)` / `(Disc 2)` | Multi-disc game identifier |
+| `(Track X)` | Specific audio or data track |
+
+Any tag not recognised as a region, language, version, or revision is stored verbatim in the `tags` array.
+
+## Example Filenames
+
+```
+Super Mario World (USA).sfc
+```
+→ region: `USA`
+
+```
+Final Fantasy VII (Europe) (Rev 1).bin
+```
+→ region: `Europe`, revision: `1`
+
+```
+Pokémon Red Version (USA, Europe) (SGB Enhanced).gb
+```
+→ regions: `USA`, `Europe`; tags: `SGB Enhanced`
+
+```
+Sonic the Hedgehog (USA, Europe) [!].md
+```
+→ regions: `USA`, `Europe`; tags: `[!]` (verified good dump)
+
+```
+Street Fighter II - The World Warrior (USA) (Beta) [b].sfc
+```
+→ region: `USA`; tags: `Beta`, `[b]` (bad dump)
+
+```
+Metal Gear Solid (Europe) (En,Fr,De,Es,It).bin
+```
+→ region: `Europe`; languages: `English`, `French`, `German`, `Spanish`, `Italian`
+
+## How Tags Affect Metadata Matching
+
+When querying IGDB, the detected region codes are mapped to IGDB's regional release identifiers so that cover art and descriptions for the correct territory are returned. ScreenScraper similarly uses region and language priority to choose the best-matching artwork variant.
+
+The priority order for regions and languages is configurable in `config.yml`:
+
+```yaml
+scan:
+  priority:
+    region:
+      - us    # United States (highest priority)
+      - wor   # World
+      - ss    # ScreenScraper internal
+      - eu    # Europe
+      - jp    # Japan
+    language:
+      - en    # English (highest priority)
+      - fr    # French
+```
+
+RomM iterates the priority list when selecting a regional variant: if a US cover is available it is preferred over a European one, regardless of which region tag is in the filename.
+
+## Filtering by Tag in the UI
+
+The RomM gallery supports filtering your library by region, language, revision, and tag using the filter panel. Click **Filters** on any platform or collection view and use the **Region**, **Language**, and **Tags** dropdowns to narrow the displayed ROMs. The values in those dropdowns are populated directly from the parsed tag data stored during scanning.
+
+<Tip>
+  After adding new ROMs that follow correct No-Intro naming, run a **Quick** scan so RomM can parse their tags and enrich the filter options without re-fetching metadata for your entire library.
+</Tip>

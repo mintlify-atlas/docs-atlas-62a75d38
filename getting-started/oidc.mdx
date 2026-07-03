@@ -1,0 +1,291 @@
+---
+title: "Single Sign-On with OIDC in RomM"
+sidebarTitle: "OIDC / SSO"
+description: "Configure OpenID Connect (OIDC) for single sign-on with providers like Authelia, Authentik, Keycloak, or any compliant identity provider."
+---
+
+RomM supports OpenID Connect (OIDC) for single sign-on, allowing users to authenticate through any compliant identity provider instead of — or in addition to — local username/password accounts. Once configured, a **Sign in with \<Provider\>** button appears on the RomM login page, and optionally RomM can skip its own login page entirely and redirect straight to your identity provider.
+
+## Prerequisites
+
+Before configuring OIDC in RomM you need:
+
+- A running OIDC-compliant identity provider (Authelia, Authentik, Keycloak, Okta, Google, etc.)
+- A **client application** registered in that provider with:
+  - An allowed redirect URI pointing back to RomM: `https://<your-romm-url>/api/oauth/openid`
+  - The `openid`, `profile`, and `email` scopes enabled (exact names vary by provider)
+- The client ID and client secret from the provider
+
+---
+
+## Configuration
+
+Set the following environment variables in your RomM container. All variables must be provided for OIDC to function.
+
+### Required Variables
+
+<ParamField body="OIDC_ENABLED" type="boolean" default="false">
+  Master switch. Set to `true` to activate OIDC authentication.
+</ParamField>
+
+<ParamField body="OIDC_CLIENT_ID" type="string">
+  The client ID issued by your identity provider when you registered the RomM application.
+</ParamField>
+
+<ParamField body="OIDC_CLIENT_SECRET" type="string">
+  The client secret issued by your identity provider.
+</ParamField>
+
+<ParamField body="OIDC_REDIRECT_URI" type="string">
+  The absolute callback URL RomM registers with the provider. Must be reachable by the user's browser after authentication.
+
+  ```
+  https://romm.example.com/api/oauth/openid
+  ```
+</ParamField>
+
+<ParamField body="OIDC_SERVER_APPLICATION_URL" type="string">
+  The base URL of your OIDC server application (e.g. `https://auth.example.com`). Used when constructing authorization URLs.
+</ParamField>
+
+<ParamField body="OIDC_SERVER_METADATA_URL" type="string">
+  The full URL to your provider's OpenID Connect discovery document.
+
+  ```
+  https://auth.example.com/.well-known/openid-configuration
+  ```
+
+  Most providers expose this at `<issuer>/.well-known/openid-configuration`.
+</ParamField>
+
+### Optional Behaviour Variables
+
+<ParamField body="OIDC_PROVIDER" type="string">
+  Display name of the identity provider shown on the RomM login button (e.g. `Authentik`, `Authelia`, `Google`). If omitted the button reads **Sign in with OIDC**.
+</ParamField>
+
+<ParamField body="OIDC_AUTOLOGIN" type="boolean" default="false">
+  When `true`, RomM skips its own login page and immediately redirects the browser to the OIDC provider. Combine with `DISABLE_USERPASS_LOGIN=true` for a fully SSO-driven experience.
+</ParamField>
+
+<ParamField body="OIDC_ALLOW_REGISTRATION" type="boolean" default="true">
+  When `true`, a new RomM user account is created automatically the first time someone authenticates via OIDC. When `false`, only pre-existing RomM accounts can log in via OIDC.
+</ParamField>
+
+<ParamField body="OIDC_USERNAME_ATTRIBUTE" type="string" default="preferred_username">
+  The OIDC claim used as the RomM username. Change this if your provider uses a different attribute (e.g. `sub`, `email`, or a custom claim).
+</ParamField>
+
+---
+
+## Role Mapping
+
+RomM can automatically assign roles to OIDC users based on claims your identity provider includes in the token. This lets you manage RomM access entirely from your IdP.
+
+<ParamField body="OIDC_CLAIM_ROLES" type="string">
+  The name of the OIDC claim that carries the user's roles (e.g. `groups`, `roles`, or a custom claim name configured in your provider).
+</ParamField>
+
+<ParamField body="OIDC_ROLE_VIEWER" type="string">
+  The claim value that maps to the `user` role with viewer-level access (legacy label still accepted by the role coercion logic).
+</ParamField>
+
+<ParamField body="OIDC_ROLE_EDITOR" type="string">
+  The claim value that maps to the `user` role with editor-level access (legacy label still accepted).
+</ParamField>
+
+<ParamField body="OIDC_ROLE_ADMIN" type="string">
+  The claim value that maps to the RomM `admin` role. Users whose roles claim contains this value will receive full administrative access.
+</ParamField>
+
+<Note>
+If `OIDC_CLAIM_ROLES` is not set, or if the claim is absent from the token, RomM falls back to the default `user` role for new accounts. Existing users retain whatever role they already have.
+</Note>
+
+**Example mapping configuration:**
+
+```bash
+OIDC_CLAIM_ROLES=groups
+OIDC_ROLE_VIEWER=romm-viewers
+OIDC_ROLE_EDITOR=romm-editors
+OIDC_ROLE_ADMIN=romm-admins
+```
+
+With this configuration, a user in the `romm-admins` group in your IdP will be assigned the `admin` role in RomM on login.
+
+---
+
+## Advanced Settings
+
+<ParamField body="OIDC_TLS_CACERTFILE" type="string">
+  Path (inside the container) to a PEM file containing trusted CA certificates. Use this when your OIDC server uses a private or self-signed certificate that is not in the default trust store.
+
+  ```bash
+  OIDC_TLS_CACERTFILE=/certs/my-ca.pem
+  ```
+
+  Mount the certificate into the container via a Docker volume.
+</ParamField>
+
+<ParamField body="OIDC_RP_INITIATED_LOGOUT" type="boolean" default="false">
+  When `true`, clicking **Logout** in RomM also terminates the session at the identity provider using the [RP-Initiated Logout](https://openid.net/specs/openid-connect-rpinitiated-1_0.html) specification. RomM returns the provider's end-session URL to the browser, which then redirects there with an `id_token_hint`.
+</ParamField>
+
+<ParamField body="OIDC_END_SESSION_ENDPOINT" type="string">
+  Manually override the end-session endpoint URL used for RP-initiated logout. If not set, RomM discovers it from the provider's metadata document. Only needed if your provider exposes a non-standard endpoint.
+</ParamField>
+
+---
+
+## Provider Examples
+
+<Tabs>
+  <Tab title="Authentik">
+    **1. Create an OAuth2/OIDC provider in Authentik**
+
+    - Navigate to **Applications → Providers → Create** and choose **OAuth2/OpenID Connect Provider**.
+    - Set the **Redirect URI** to `https://romm.example.com/api/oauth/openid`.
+    - Copy the **Client ID** and **Client Secret**.
+
+    **2. RomM environment variables:**
+
+    ```bash
+    OIDC_ENABLED=true
+    OIDC_PROVIDER=Authentik
+    OIDC_CLIENT_ID=<client-id-from-authentik>
+    OIDC_CLIENT_SECRET=<client-secret-from-authentik>
+    OIDC_REDIRECT_URI=https://romm.example.com/api/oauth/openid
+    OIDC_SERVER_APPLICATION_URL=https://auth.example.com/application/o/romm
+    OIDC_SERVER_METADATA_URL=https://auth.example.com/application/o/romm/.well-known/openid-configuration
+    OIDC_CLAIM_ROLES=groups
+    OIDC_ROLE_ADMIN=romm-admins
+    OIDC_ALLOW_REGISTRATION=true
+    ```
+
+    <Note>
+    The `OIDC_SERVER_METADATA_URL` path in Authentik follows the pattern `<authentik-url>/application/o/<slug>/.well-known/openid-configuration` where `<slug>` is the application slug you configured.
+    </Note>
+  </Tab>
+  <Tab title="Authelia">
+    **1. Register a client in Authelia's `configuration.yml`:**
+
+    ```yaml
+    identity_providers:
+      oidc:
+        clients:
+          - id: romm
+            secret: "$argon2id$..."   # hashed secret
+            public: false
+            authorization_policy: two_factor
+            redirect_uris:
+              - https://romm.example.com/api/oauth/openid
+            scopes:
+              - openid
+              - profile
+              - email
+              - groups
+            userinfo_signing_algorithm: none
+    ```
+
+    **2. RomM environment variables:**
+
+    ```bash
+    OIDC_ENABLED=true
+    OIDC_PROVIDER=Authelia
+    OIDC_CLIENT_ID=romm
+    OIDC_CLIENT_SECRET=<plain-text-secret>
+    OIDC_REDIRECT_URI=https://romm.example.com/api/oauth/openid
+    OIDC_SERVER_APPLICATION_URL=https://auth.example.com
+    OIDC_SERVER_METADATA_URL=https://auth.example.com/.well-known/openid-configuration
+    OIDC_CLAIM_ROLES=groups
+    OIDC_ROLE_ADMIN=romm-admins
+    OIDC_ALLOW_REGISTRATION=true
+    ```
+  </Tab>
+  <Tab title="Generic OIDC Provider">
+    Use this template for any OpenID Connect–compliant provider (Keycloak, Okta, Dex, Zitadel, etc.):
+
+    ```bash
+    OIDC_ENABLED=true
+    OIDC_PROVIDER=<Display Name>
+    OIDC_CLIENT_ID=<your-client-id>
+    OIDC_CLIENT_SECRET=<your-client-secret>
+    OIDC_REDIRECT_URI=https://<romm-domain>/api/oauth/openid
+    OIDC_SERVER_APPLICATION_URL=https://<idp-domain>
+    OIDC_SERVER_METADATA_URL=https://<idp-domain>/.well-known/openid-configuration
+    # Optional role mapping
+    OIDC_CLAIM_ROLES=<claim-name>
+    OIDC_ROLE_VIEWER=<viewer-role-value>
+    OIDC_ROLE_EDITOR=<editor-role-value>
+    OIDC_ROLE_ADMIN=<admin-role-value>
+    # Optional behaviour
+    OIDC_USERNAME_ATTRIBUTE=preferred_username
+    OIDC_ALLOW_REGISTRATION=true
+    OIDC_AUTOLOGIN=false
+    ```
+
+    <Tip>
+    Most providers publish their discovery document at `/.well-known/openid-configuration` relative to the issuer URL. Check your provider's documentation if the metadata URL differs.
+    </Tip>
+  </Tab>
+</Tabs>
+
+---
+
+## Docker Compose Example
+
+Add the OIDC environment variables to the `romm` service in your `docker-compose.yml`:
+
+```yaml
+services:
+  romm:
+    image: rommapp/romm:latest
+    environment:
+      # ... other required variables (DB, Redis, secret key) ...
+
+      # OIDC / SSO
+      OIDC_ENABLED: "true"
+      OIDC_PROVIDER: "Authentik"
+      OIDC_CLIENT_ID: "your-client-id"
+      OIDC_CLIENT_SECRET: "your-client-secret"
+      OIDC_REDIRECT_URI: "https://romm.example.com/api/oauth/openid"
+      OIDC_SERVER_APPLICATION_URL: "https://auth.example.com/application/o/romm"
+      OIDC_SERVER_METADATA_URL: "https://auth.example.com/application/o/romm/.well-known/openid-configuration"
+
+      # Role mapping
+      OIDC_CLAIM_ROLES: "groups"
+      OIDC_ROLE_ADMIN: "romm-admins"
+      OIDC_ROLE_EDITOR: "romm-editors"
+      OIDC_ROLE_VIEWER: "romm-viewers"
+
+      # Force SSO-only login (no username/password form)
+      DISABLE_USERPASS_LOGIN: "true"
+      OIDC_AUTOLOGIN: "true"
+
+      # Auto-create accounts for new OIDC users
+      OIDC_ALLOW_REGISTRATION: "true"
+
+      # RP-initiated logout (redirect to IdP on sign out)
+      OIDC_RP_INITIATED_LOGOUT: "true"
+```
+
+<Warning>
+`OIDC_REDIRECT_URI` must exactly match the redirect URI you registered in your identity provider, including scheme (`https://`), domain, port (if non-standard), and path (`/api/oauth/openid`). A mismatch will cause the OAuth2 callback to fail.
+</Warning>
+
+---
+
+## Forcing SSO-Only Access
+
+To remove the username/password login form entirely and require all users to authenticate through your identity provider:
+
+```bash
+DISABLE_USERPASS_LOGIN=true
+OIDC_AUTOLOGIN=true
+```
+
+With `OIDC_AUTOLOGIN=true`, visiting the RomM login page immediately issues a redirect to the OIDC provider — users never see the RomM login form. With `DISABLE_USERPASS_LOGIN=true`, any direct attempt to call the `/login` or `/token` endpoints with a password is rejected.
+
+<Note>
+Even with `DISABLE_USERPASS_LOGIN=true`, the first admin account still needs to be created before OIDC login is possible. Either use the first-boot setup wizard before enabling this flag, or create the admin via the API with a temporary password, then set the flag.
+</Note>

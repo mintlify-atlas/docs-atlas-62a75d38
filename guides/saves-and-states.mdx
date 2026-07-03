@@ -1,0 +1,248 @@
+---
+title: "Save Files and Save States in RomM"
+sidebarTitle: "Saves & States"
+description: "Upload, manage, and sync save files and save states across devices. Learn how RomM stores assets and how to use the device sync protocol."
+---
+
+RomM stores save files and save states on the server, making it possible to pick up a game on any device right where you left off. Whether you upload saves manually through the UI, push them via the REST API, or use a companion app with automatic sync, all assets land in a single, predictable location under your `/romm/assets` volume.
+
+## Storage Location
+
+Save files, save states, and their associated screenshots are stored inside the
+`/romm/assets` Docker volume. The directory layout mirrors your ROM library
+structure:
+
+```
+/romm/assets/
+└── <username>/
+    ├── saves/
+    │   └── <platform_slug>/
+    │       └── <rom_id>/
+    │           └── <emulator>/   # omitted when emulator is not set
+    │               └── mysave.srm
+    ├── states/
+    │   └── <platform_slug>/
+    │       └── <rom_id>/
+    │           └── <emulator>/
+    │               └── mystate.state
+    └── screenshots/
+        └── <platform_slug>/
+            └── <rom_id>/
+                └── mystate.png
+```
+
+<Note>
+  Save files are scoped per **user** per **ROM**. Each user's saves are stored in
+  their own subdirectory, so different users can maintain independent progress for
+  the same game without any conflict.
+</Note>
+
+## Save File Model
+
+Each save is stored in the database with the following fields (from `models/assets.py`):
+
+| Field | Description |
+|---|---|
+| `file_name` | Original filename of the save (e.g. `myrom.srm`) |
+| `file_path` | Absolute path to the containing directory |
+| `file_size_bytes` | Size of the save file in bytes |
+| `content_hash` | MD5 hash used for deduplication and conflict detection |
+| `emulator` | Emulator name the save was created by (optional) |
+| `slot` | Save slot identifier; datetime-tagged for slot-based history |
+| `is_public` | Whether other users can view and download this save |
+| `origin_device_id` | ID of the device that first uploaded this save |
+
+Save state (`State`) records share the same base fields, minus `slot`, `content_hash`, and `origin_device_id`.
+
+## Uploading Saves and States
+
+<Tabs>
+  <Tab title="Via the UI">
+    Open a game's detail page, switch to the **Saves** or **States** tab, and use
+    the upload button to attach a file from your local machine. An optional
+    screenshot can be uploaded at the same time for a visual preview.
+  </Tab>
+  <Tab title="Via the API">
+    ```bash
+    # Upload a save file (multipart/form-data)
+    curl -X POST "https://your-romm/api/saves?rom_id=42&emulator=snes9x&slot=slot1" \
+      -H "Authorization: Bearer <token>" \
+      -F "saveFile=@myrom.srm"
+
+    # Upload a save state
+    curl -X POST "https://your-romm/api/states?rom_id=42&emulator=snes9x" \
+      -H "Authorization: Bearer <token>" \
+      -F "stateFile=@myrom.state"
+    ```
+
+    Both endpoints accept an optional `screenshotFile` field for a preview image.
+  </Tab>
+</Tabs>
+
+## Downloading Saves and States
+
+```bash
+# Download a save by ID
+GET /api/saves/{id}/content
+
+# Download a save state by ID
+GET /api/states/{id}/content
+```
+
+Both endpoints return the raw file as an attachment. Save downloads also update
+the device sync record for the requesting device (see [Device Sync](#device-sync-protocol) below).
+
+## Listing and Querying
+
+```bash
+# List saves (filter by ROM or platform)
+GET /api/saves?rom_id=42
+GET /api/saves?platform_id=7
+
+# Get a summary grouped by slot
+GET /api/saves/summary?rom_id=42
+
+# List states
+GET /api/states?rom_id=42
+```
+
+## Visibility
+
+Saves and states are **private by default**. You can make a save or state public
+so that other users in the same RomM instance can browse and download it:
+
+```bash
+PUT /api/saves/{id}/visibility
+Content-Type: application/json
+
+{ "is_public": true }
+```
+
+When a save is made public, its associated screenshot thumbnail is automatically
+set to public as well so previews render correctly.
+
+## Device Sync Protocol
+
+RomM implements a structured pull/push sync protocol designed for companion apps
+(such as mobile emulator frontends). The sync cycle has two phases:
+
+<Steps>
+  <Step title="Negotiate">
+    The client sends its current save inventory to the server. The server compares
+    content hashes and timestamps, then returns an ordered list of operations.
+
+    ```bash
+    POST /api/sync/negotiate
+    Content-Type: application/json
+
+    {
+      "device_id": "my-device-uuid",
+      "saves": [
+        {
+          "rom_id": 42,
+          "file_name": "myrom.srm",
+          "slot": "slot1",
+          "emulator": "snes9x",
+          "content_hash": "d41d8cd98f00b204e9800998ecf8427e",
+          "updated_at": "2024-06-01T12:00:00Z",
+          "file_size_bytes": 8192
+        }
+      ]
+    }
+    ```
+
+    The response contains a `session_id` and a list of `operations`, each with
+    one of four actions:
+
+    | Action | Meaning |
+    |---|---|
+    | `upload` | Client has a save the server lacks — client should push it |
+    | `download` | Server has a save the client lacks or that is newer — client should pull it |
+    | `conflict` | Both sides have changes since the last sync — manual resolution needed |
+    | `no_op` | Both sides are in sync — nothing to do |
+  </Step>
+  <Step title="Execute operations">
+    The client works through the operation list:
+    - For `upload` actions, call `POST /api/saves` with the local file.
+    - For `download` actions, call `GET /api/saves/{save_id}/content`.
+    - For `conflict` actions, decide locally which copy to keep, then upload or skip.
+
+    Each save download automatically records a sync timestamp for the device.
+    Each save upload similarly marks the device as current.
+  </Step>
+  <Step title="Complete">
+    Signal that the sync cycle is finished and optionally report play-session
+    telemetry:
+
+    ```bash
+    POST /api/sync/sessions/{session_id}/complete
+    Content-Type: application/json
+
+    {
+      "operations_completed": 3,
+      "operations_failed": 0,
+      "play_sessions": [
+        {
+          "rom_id": 42,
+          "save_slot": "slot1",
+          "start_time": "2024-06-01T11:00:00Z",
+          "end_time": "2024-06-01T12:00:00Z",
+          "duration_ms": 3600000
+        }
+      ]
+    }
+    ```
+  </Step>
+</Steps>
+
+### Sync Modes
+
+Devices can operate in one of three sync modes (defined in `models/device.py`):
+
+| Mode | Value | Description |
+|---|---|---|
+| API | `api` | Client-driven negotiate/complete cycle (default for most apps) |
+| File Transfer | `file_transfer` | Direct file-system sync over SSH/rsync |
+| Push-Pull | `push_pull` | Server-initiated scheduled sync triggered by RomM |
+
+### Tracking and Untracking
+
+A device can mark individual saves as **untracked** to opt them out of future sync
+cycles without deleting them:
+
+```bash
+POST /api/saves/{id}/untrack   # Stop syncing this save on this device
+POST /api/saves/{id}/track     # Re-enable sync tracking
+```
+
+### Scheduled Push-Pull Sync
+
+When `ENABLE_SYNC_PUSH_PULL=true`, RomM runs background sync jobs on the schedule
+defined by `SYNC_PUSH_PULL_CRON`. You can also trigger a push-pull sync manually
+for a specific device:
+
+```bash
+POST /api/sync/devices/{device_id}/push-pull
+```
+
+```bash
+# Environment variables
+ENABLE_SYNC_PUSH_PULL=false          # Enable scheduled push/pull
+SYNC_PUSH_PULL_CRON=*/30 * * * *     # Run every 30 minutes by default
+```
+
+### Reviewing Sync Sessions
+
+```bash
+# List all sync sessions (optionally filter by device)
+GET /api/sync/sessions?device_id=my-device-uuid
+
+# Get a specific session
+GET /api/sync/sessions/{session_id}
+```
+
+<Tip>
+  The **Argosy** Android app is the recommended companion for mobile save sync.
+  It supports the full negotiate/execute/complete protocol and can automatically
+  sync saves in the background whenever you finish a play session.
+</Tip>

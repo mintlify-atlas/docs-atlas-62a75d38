@@ -1,0 +1,154 @@
+---
+title: "Playing ROMs in the Browser with EmulatorJS"
+sidebarTitle: "EmulatorJS"
+description: "Use RomM's built-in EmulatorJS integration to play retro games directly in your browser. Configure cores, controls, netplay, and per-game settings."
+---
+
+RomM ships with a built-in EmulatorJS integration that lets you play retro ROMs directly in your web browser — no plugins, no installs. Flash games (`.swf`) are also supported through the RuffleRS renderer, which runs seamlessly alongside EmulatorJS.
+
+## Supported Systems
+
+EmulatorJS covers most major retro platforms, including NES, SNES, Game Boy, Game Boy Color, Game Boy Advance, Nintendo 64, Nintendo DS, Sega Genesis/Mega Drive, Sega Saturn, PlayStation 1, Atari 2600/5200/7800, PC Engine/TurboGrafx-16, arcade via MAME, and many more. RuffleRS handles Adobe Flash (`.swf`) titles.
+
+<Note>
+  Not all ROM formats are supported by every core. If a game does not load, check
+  that your ROM's file extension matches what the underlying core expects. Refer to
+  the [EmulatorJS documentation](https://emulatorjs.org) for per-core format details.
+</Note>
+
+## Enabling and Disabling
+
+Both EmulatorJS and RuffleRS are enabled by default. You can turn either off with environment variables in your Docker deployment:
+
+```bash
+# Disable in-browser play via EmulatorJS
+DISABLE_EMULATOR_JS=true
+
+# Disable in-browser Flash playback via RuffleRS
+DISABLE_RUFFLE_RS=true
+```
+
+## Playing a Game
+
+<Steps>
+  <Step title="Open the game detail page">
+    Navigate to any ROM in your library and open its detail page.
+  </Step>
+  <Step title="Click Play">
+    Press the **Play** button to launch the EmulatorJS player. The ROM is streamed
+    directly from your RomM server into the browser-based emulator.
+  </Step>
+  <Step title="Configure controls (optional)">
+    Use the in-player controls menu to remap buttons, or pre-configure them in
+    `config.yml` (see below).
+  </Step>
+</Steps>
+
+<Tip>
+  Press **F1** (or the menu button on a controller) while a game is running to
+  access the EmulatorJS quick-menu, where you can save states, load states, and
+  adjust core settings on the fly.
+</Tip>
+
+## Configuration in `config.yml`
+
+All EmulatorJS options live under the `emulatorjs` key in your `config.yml` file.
+
+### Debug Mode
+
+Set `debug: true` to have EmulatorJS log all available core option names to the
+browser console. This is useful when you want to know what keys to use in the
+`settings` section.
+
+```yaml
+emulatorjs:
+  debug: true
+```
+
+### Per-Core Settings
+
+Use `emulatorjs.settings` to pass core-specific options. The key is the exact
+core name as reported by EmulatorJS. A special `default` key applies its values
+to every core.
+
+```yaml
+emulatorjs:
+  settings:
+    parallel_n64:       # Exact core name
+      vsync: disabled
+    snes9x:
+      snes9x_region: ntsc
+    default:            # Applied to all cores
+      fps: show
+```
+
+### Controls Mapping
+
+Use `emulatorjs.controls` to define button mappings per core and per player. Each
+player index (`0` = Player 1, `1` = Player 2, …) contains a map of button indices
+to their keyboard (`value`) and controller (`value2`) assignments. Every button in
+the core's layout must have an entry.
+
+Refer to the [EmulatorJS control mapping docs](https://emulatorjs.org/docs4devs/control-mapping/) for the full list of button indices per core.
+
+```yaml
+emulatorjs:
+  controls:
+    snes9x:
+      0:        # Player 1
+        0:      # Button index — a mapping for EACH button must be set!
+          value: x          # Keyboard mapping
+          value2: BUTTON_2  # Connected controller mapping
+      1:        # Player 2
+      2:        # Player 3
+      3:        # Player 4
+```
+
+### Cache Limit
+
+`cache_limit` sets the maximum size (in bytes) that EmulatorJS will cache per ROM
+in the browser. Set to `null` (the default) to use the browser's default behaviour.
+
+```yaml
+emulatorjs:
+  cache_limit: 536870912  # 512 MB, for example
+```
+
+### Batch Bootup and Auto-Unload
+
+```yaml
+emulatorjs:
+  disable_batch_bootup: false  # Set true to disable simultaneous asset loading
+  disable_auto_unload: false   # Set true to keep the emulator in memory when hidden
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `disable_batch_bootup` | `false` | When `true`, EmulatorJS loads assets one-at-a-time instead of in parallel. |
+| `disable_auto_unload` | `false` | When `true`, the emulator core stays alive even when its container is not visible. |
+
+## Save Files
+
+EmulatorJS maintains in-browser save data (SRAM) automatically while a game is
+running. RomM can sync these saves back to server storage so your progress is
+preserved across sessions and devices.
+
+<Tip>
+  To back up or transfer saves, navigate to the game detail page after playing.
+  RomM will detect any new or changed saves and offer to sync them to the server.
+  See the [Saves & States guide](/guides/saves-and-states) for the full sync workflow.
+</Tip>
+
+## RuffleRS (Flash Games)
+
+RuffleRS is RomM's built-in Flash player. When a ROM file has a `.swf` extension,
+RomM automatically routes it through RuffleRS instead of EmulatorJS. No extra
+configuration is needed — RuffleRS is active by default unless you set
+`DISABLE_RUFFLE_RS=true` in your environment.
+
+<Note>
+  RuffleRS supports a large subset of ActionScript 2 and ActionScript 3 games, but
+  compatibility with all Flash content is not guaranteed. Check the
+  [Ruffle compatibility database](https://ruffle.rs/compatibility/) if a specific
+  game does not run correctly.
+</Note>

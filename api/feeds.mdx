@@ -1,0 +1,290 @@
+---
+title: "Feeds API: Tinfoil, WebRcade, and PKGi Endpoints"
+sidebarTitle: "Feeds"
+description: "Feed endpoints in RomM for Tinfoil (Switch), WebRcade, PKGi (PS3/PSP/Vita), and other frontend clients."
+---
+
+RomM exposes read-only feed endpoints designed for compatible game frontend clients. These endpoints translate your library into formats that clients like Tinfoil (Nintendo Switch homebrew), WebRcade (browser-based emulator), PKGi (PlayStation homebrew), FPKGi (PS4/PS5 homebrew), and Kekatsu DS can consume directly.
+
+<Note>
+  By default, feed endpoints require authentication with the `roms.read` scope. Set `DISABLE_DOWNLOAD_ENDPOINT_AUTH=true` in your environment to allow unauthenticated access — useful when clients cannot send an `Authorization` header.
+</Note>
+
+---
+
+## GET /feeds/webrcade
+
+Generate a WebRcade-compatible feed from your library. Only platforms whose slug appears in WebRcade's supported platform list are included.
+
+**Required scope:** `roms.read` (or unauthenticated if `DISABLE_DOWNLOAD_ENDPOINT_AUTH=true`)
+
+**Response format:** `application/json` — WebRcade feed schema
+
+```bash
+curl http://localhost:8080/feeds/webrcade \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response:**
+
+```json
+{
+  "title": "RomM Feed",
+  "longTitle": "Custom RomM Feed",
+  "description": "Custom feed from your RomM library",
+  "thumbnail": "https://...",
+  "background": "https://...",
+  "categories": [
+    {
+      "title": "Game Boy Advance",
+      "longTitle": "Game Boy Advance Games",
+      "thumbnail": "http://your-romm/assets/webrcade/feed/gba-thumb.png",
+      "background": "http://your-romm/assets/webrcade/feed/gba-background.png",
+      "items": [
+        {
+          "title": "Super Mario World",
+          "description": "...",
+          "type": "gba",
+          "thumbnail": "http://your-romm/resources/...",
+          "props": {
+            "rom": "http://your-romm/roms/15/files/content/SuperMarioWorld.gba"
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+Point WebRcade at `http://<your-romm>:8080/feeds/webrcade` as a custom feed URL. See the [WebRcade feed format docs](https://docs.webrcade.com/feeds/format/) for client setup.
+
+---
+
+## GET /feeds/tinfoil
+
+Generate a Tinfoil custom index feed for Nintendo Switch ROMs. Returns URLs for `.xci`, `.nsp`, `.nsz`, `.xcz`, and `.nro` files, plus a TitleDB block derived from filenames.
+
+**Required scope:** None (Tinfoil uses its own auth headers; this endpoint is always open to allow Tinfoil to manage credentials)
+
+<ParamField query="slug" type="string" default="switch">
+  Platform slug to use for the Nintendo Switch library. Defaults to `switch`.
+</ParamField>
+
+**Response format:** `application/json` — Tinfoil custom index schema
+
+```bash
+curl http://localhost:8080/feeds/tinfoil
+```
+
+**Response:**
+
+```json
+{
+  "files": [
+    { "url": "http://your-romm/roms/10/files/content/GameTitle.nsp", "size": 4294967296 }
+  ],
+  "directories": [],
+  "success": "Welcome to your RomM library!",
+  "titledb": {
+    "0100ABC001234000": { "id": "0100ABC001234000", "name": "Game Title", ... }
+  }
+}
+```
+
+Add `http://<your-romm>:8080/feeds/tinfoil` as a custom shop URL in Tinfoil. See the [Tinfoil custom index docs](https://blawar.github.io/tinfoil/custom_index/) for setup.
+
+---
+
+## GET /feeds/pkgi/ps3/{content_type}
+
+Generate a PKGi PS3-compatible database file for PlayStation 3 content.
+
+**Required scope:** `roms.read` (or unauthenticated if `DISABLE_DOWNLOAD_ENDPOINT_AUTH=true`)
+
+**Response format:** `text/plain` — comma-separated PKGi database
+
+<ParamField path="content_type" type="string" required>
+  Content category to include. Valid values: `game`, `dlc`, `demo`, `update`, `patch`.
+</ParamField>
+
+```bash
+curl "http://localhost:8080/feeds/pkgi/ps3/game" \
+  -H "Authorization: Bearer <token>" \
+  -o pkgi_game.txt
+```
+
+**Response columns:** `contentid, type, name, description, rap, url, size, checksum`
+
+Configure [PKGi PS3](https://github.com/bucanero/pkgi-ps3) with the URL to this endpoint as your database source.
+
+---
+
+## GET /feeds/pkgi/psvita/{content_type}
+
+Generate a PKGi PS Vita-compatible database file.
+
+**Required scope:** `roms.read` (or unauthenticated if `DISABLE_DOWNLOAD_ENDPOINT_AUTH=true`)
+
+<ParamField path="content_type" type="string" required>
+  Content category: `game`, `dlc`, `demo`, `update`, `patch`.
+</ParamField>
+
+```bash
+curl "http://localhost:8080/feeds/pkgi/psvita/game" \
+  -H "Authorization: Bearer <token>" \
+  -o pkgi_vita_game.txt
+```
+
+**Response columns:** `contentid, flags, name, name2, zrif, url, size, checksum`
+
+---
+
+## GET /feeds/pkgi/psp/{content_type}
+
+Generate a PKGi PSP-compatible database file for PlayStation Portable content.
+
+**Required scope:** `roms.read` (or unauthenticated if `DISABLE_DOWNLOAD_ENDPOINT_AUTH=true`)
+
+<ParamField path="content_type" type="string" required>
+  Content category: `game`, `dlc`, `demo`, `update`, `patch`.
+</ParamField>
+
+```bash
+curl "http://localhost:8080/feeds/pkgi/psp/game" \
+  -H "Authorization: Bearer <token>" \
+  -o pkgi_psp_game.txt
+```
+
+**Response columns:** `contentid, type, name, description, rap, url, size, checksum`
+
+---
+
+## GET /feeds/pkgj/psp/games
+
+Generate a PKGj-format tab-separated games list for PSP.
+
+**Required scope:** `roms.read` (or unauthenticated if `DISABLE_DOWNLOAD_ENDPOINT_AUTH=true`)
+
+**Response format:** `text/plain` — tab-separated with header row
+
+```bash
+curl http://localhost:8080/feeds/pkgj/psp/games \
+  -H "Authorization: Bearer <token>" \
+  -o pkgj_psp_games.txt
+```
+
+**Response columns:** `Title ID, Region, Type, Name, PKG direct link, Content ID, Last Modification Date, RAP, Download .RAP file, File Size, SHA256`
+
+---
+
+## GET /feeds/pkgj/psp/dlc
+
+Generate a PKGj tab-separated DLC list for PSP.
+
+**Required scope:** `roms.read` (or unauthenticated if `DISABLE_DOWNLOAD_ENDPOINT_AUTH=true`)
+
+**Response columns:** `Title ID, Region, Name, PKG direct link, Content ID, Last Modification Date, RAP, Download .RAP file, File Size, SHA256`
+
+---
+
+## GET /feeds/pkgj/psvita/games
+
+Generate a PKGj-format games list for PS Vita.
+
+**Required scope:** `roms.read` (or unauthenticated if `DISABLE_DOWNLOAD_ENDPOINT_AUTH=true`)
+
+**Response columns:** `Title ID, Region, Name, PKG direct link, zRIF, Content ID, Last Modification Date, Original Name, File Size, SHA256, Required FW, App Version`
+
+---
+
+## GET /feeds/pkgj/psvita/dlc
+
+Generate a PKGj DLC list for PS Vita.
+
+**Required scope:** `roms.read` (or unauthenticated if `DISABLE_DOWNLOAD_ENDPOINT_AUTH=true`)
+
+**Response columns:** `Title ID, Region, Name, PKG direct link, zRIF, Content ID, Last Modification Date, File Size, SHA256`
+
+---
+
+## GET /feeds/pkgj/psx/games
+
+Generate a PKGj-format games list for PlayStation (PSX).
+
+**Required scope:** `roms.read` (or unauthenticated if `DISABLE_DOWNLOAD_ENDPOINT_AUTH=true`)
+
+**Response columns:** `Title ID, Region, Name, PKG direct link, Content ID, Last Modification Date, Original Name, File Size, SHA256`
+
+---
+
+## GET /feeds/fpkgi/{platform_slug}
+
+Generate an FPKGi-compatible JSON feed for PS4 or PS5 content.
+
+**Required scope:** `roms.read` (or unauthenticated if `DISABLE_DOWNLOAD_ENDPOINT_AUTH=true`)
+
+<ParamField path="platform_slug" type="string" required>
+  Platform slug for the target platform (e.g. `ps4`, `ps5`).
+</ParamField>
+
+**Response format:** `application/json`
+
+```bash
+curl "http://localhost:8080/feeds/fpkgi/ps4" \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response:**
+
+```json
+{
+  "DATA": {
+    "http://your-romm/roms/50/files/content/GameTitle.pkg": {
+      "name": "Game Title",
+      "size": 8589934592,
+      "title_id": "ROMM00050",
+      "region": "EUR",
+      "version": "01.00",
+      "release": "11-15-2023",
+      "min_fw": null,
+      "cover_url": "http://your-romm/resources/..."
+    }
+  }
+}
+```
+
+Configure [FPKGi](https://github.com/ItsJokerZz/FPKGi) with the endpoint URL as the database source.
+
+---
+
+## GET /feeds/kekatsu/{platform_slug}
+
+Generate a Kekatsu DS-compatible tab-separated database for Nintendo DS, GBA, or other portable platforms.
+
+**Required scope:** `roms.read` (or unauthenticated if `DISABLE_DOWNLOAD_ENDPOINT_AUTH=true`)
+
+<ParamField path="platform_slug" type="string" required>
+  Platform slug (e.g. `nds`, `gba`).
+</ParamField>
+
+```bash
+curl "http://localhost:8080/feeds/kekatsu/nds" \
+  -H "Authorization: Bearer <token>" \
+  -o kekatsu_nds.txt
+```
+
+**Response:** Tab-separated text file. First line is the database version (`1`), second line is the tab delimiter character. Subsequent lines contain ROM entries.
+
+**Entry columns:** `title, platform, region, version, author, download_url, filename, size, box_art_url`
+
+Configure [Kekatsu DS](https://github.com/cavv-dev/Kekatsu-DS) with the URL as a database source.
+
+---
+
+## Authentication Note
+
+When `DISABLE_DOWNLOAD_ENDPOINT_AUTH=true` is set in your RomM environment, all feed endpoints accept unauthenticated requests. This is the recommended configuration when frontend clients (Tinfoil, PKGi, Kekatsu) cannot pass authentication headers.
+
+<Warning>
+  Disabling download endpoint authentication means anyone who can reach your RomM instance can access your entire library via these feeds. Only enable this setting on networks you trust, or combined with a reverse proxy that enforces its own access controls.
+</Warning>

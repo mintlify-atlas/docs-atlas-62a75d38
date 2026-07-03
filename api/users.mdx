@@ -1,0 +1,284 @@
+---
+title: "Users API: Manage User Accounts and Roles"
+sidebarTitle: "Users"
+description: "REST endpoints for managing user accounts, roles, and invitations in RomM. Admin-only operations for user creation and role assignment."
+---
+
+The Users API provides control over user accounts in RomM. Most endpoints require admin-level access — creating users, changing roles, and generating invite links are restricted to users with the `users.write` scope. Every user can read and update their own profile via the `/users/me` and `/users/{id}` endpoints.
+
+---
+
+## Roles
+
+RomM uses a two-tier role model:
+
+| Role | Description |
+|---|---|
+| `admin` | Full access. Bypasses all permission group checks. Can create, edit, and delete any user. |
+| `user` | Access is governed by their assigned permission group. Can only edit their own profile. |
+
+<Note>
+  The legacy `viewer` and `editor` roles from older RomM versions are automatically coerced to `user` at login. There is no longer a separate editor tier — granular permissions are managed through permission groups.
+</Note>
+
+---
+
+## GET /users
+
+Retrieve all user accounts. Admin-only.
+
+**Required scope:** `users.read`
+
+```bash
+curl http://localhost:8080/users \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response:** Array of `UserSchema` objects.
+
+<ResponseField name="id" type="integer">Internal user ID.</ResponseField>
+<ResponseField name="username" type="string">Username (lowercase).</ResponseField>
+<ResponseField name="email" type="string | null">Email address (lowercase).</ResponseField>
+<ResponseField name="enabled" type="boolean">Whether the account is active.</ResponseField>
+<ResponseField name="role" type="string">Role value: `admin` or `user`.</ResponseField>
+<ResponseField name="permission_group_id" type="integer | null">ID of the assigned permission group. `null` uses the server default.</ResponseField>
+<ResponseField name="oauth_scopes" type="string[]">Computed list of OAuth2 scopes the user can grant.</ResponseField>
+<ResponseField name="avatar_path" type="string">Path to the user's avatar image.</ResponseField>
+<ResponseField name="last_login" type="string | null">ISO 8601 last login timestamp (UTC).</ResponseField>
+<ResponseField name="last_active" type="string | null">ISO 8601 last activity timestamp (UTC).</ResponseField>
+<ResponseField name="ra_username" type="string | null">Linked RetroAchievements username.</ResponseField>
+<ResponseField name="created_at" type="string">ISO 8601 creation timestamp.</ResponseField>
+<ResponseField name="updated_at" type="string">ISO 8601 last-updated timestamp.</ResponseField>
+
+---
+
+## GET /users/identifiers
+
+Retrieve only the IDs of all user accounts.
+
+**Required scope:** `users.read`
+
+```bash
+curl http://localhost:8080/users/identifiers \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response:** `[1, 2, 3, ...]`
+
+---
+
+## GET /users/me
+
+Retrieve the currently authenticated user's profile. Also returns the current `device_id` if a device session is active.
+
+**Required scope:** `me.read`
+
+```bash
+curl http://localhost:8080/users/me \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response:** `UserSchema` for the current user, with `current_device_id` populated.
+
+---
+
+## GET /users/{id}
+
+Retrieve a single user by internal ID.
+
+**Required scope:** `users.read`
+
+<ParamField path="id" type="integer" required>
+  User internal ID.
+</ParamField>
+
+```bash
+curl http://localhost:8080/users/2 \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response:** `UserSchema` or `404` if not found.
+
+---
+
+## GET /users/{id}/avatar
+
+Serve a user's avatar image. Any authenticated user can fetch any other user's avatar (avatars are considered public within an authenticated session).
+
+**Required scope:** `assets.read`
+
+<ParamField path="id" type="integer" required>
+  User internal ID.
+</ParamField>
+
+```bash
+curl http://localhost:8080/users/2/avatar \
+  -H "Authorization: Bearer <token>" \
+  -o avatar.jpg
+```
+
+---
+
+## POST /users
+
+Create a new user account. Requires admin privileges (the `users.write` scope) when admin users already exist. During initial setup (no admins exist yet) this endpoint is open.
+
+**Required scope:** `users.write` (once any admin exists)
+
+<ParamField body="username" type="string" required>
+  Username for the new account (must be unique).
+</ParamField>
+
+<ParamField body="email" type="string" required>
+  Email address (must be unique).
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  Initial password.
+</ParamField>
+
+<ParamField body="role" type="string" required>
+  Role for the new user: `admin` or `user`. Only an existing admin can create another admin.
+</ParamField>
+
+```bash
+curl -X POST http://localhost:8080/users \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"username": "alice", "email": "alice@example.com", "password": "s3cr3t", "role": "user"}'
+```
+
+**Response:** `201 Created` — the new `UserSchema`.
+
+---
+
+## PUT /users/{id}
+
+Update a user account. Accepts `multipart/form-data` so that a new avatar can be uploaded in the same request.
+
+Admins can update any user. Non-admin users can only update themselves.
+
+**Required scope:** `me.write` (self) or `users.write` (admin updating another user)
+
+<ParamField path="id" type="integer" required>
+  User internal ID.
+</ParamField>
+
+<Expandable title="Form fields">
+  <ParamField body="username" type="string">New username (unique).</ParamField>
+  <ParamField body="password" type="string">New password.</ParamField>
+  <ParamField body="email" type="string">New email address (unique).</ParamField>
+  <ParamField body="role" type="string">New role. Admins only; cannot change your own role; cannot demote the last admin.</ParamField>
+  <ParamField body="enabled" type="boolean">Enable or disable the account. Cannot disable yourself.</ParamField>
+  <ParamField body="ra_username" type="string">RetroAchievements username to link.</ParamField>
+  <ParamField body="ui_settings" type="string">JSON string of UI preference settings.</ParamField>
+  <ParamField body="avatar" type="file">Avatar image to upload (JPEG/PNG/WebP).</ParamField>
+</Expandable>
+
+```bash
+curl -X PUT http://localhost:8080/users/2 \
+  -H "Authorization: Bearer <token>" \
+  -F "ra_username=myRAuser" \
+  -F "avatar=@/path/to/avatar.png"
+```
+
+<Warning>
+  If you change your own username or password, your current session will be cleared and you will be logged out.
+</Warning>
+
+---
+
+## DELETE /users/{id}
+
+Delete a user account. Removes the user's avatar directory from disk.
+
+**Required scope:** `users.write`
+
+<ParamField path="id" type="integer" required>
+  User internal ID.
+</ParamField>
+
+```bash
+curl -X DELETE http://localhost:8080/users/2 \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response:** `204 No Content`.
+
+| Guard | Error |
+|---|---|
+| Deleting yourself | `400 You cannot delete yourself` |
+| Deleting the last admin | `400 You cannot delete the last admin user` |
+
+---
+
+## POST /users/invite-link
+
+Generate an invite link token that allows someone to self-register with a pre-assigned role. Only admins can generate admin invite links.
+
+**Required scope:** `users.write`
+
+<ParamField query="role" type="string" required>
+  Role for the invited user: `admin` or `user`.
+</ParamField>
+
+<ParamField query="expiration" type="integer">
+  Token lifetime in seconds. Defaults to `INVITE_TOKEN_EXPIRY_SECONDS`. Must be a positive integer.
+</ParamField>
+
+```bash
+curl -X POST "http://localhost:8080/users/invite-link?role=user&expiration=86400" \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response:**
+
+```json
+{ "token": "<invite_jwt>" }
+```
+
+Share the token with the invitee. They register via `POST /users/register`.
+
+---
+
+## POST /users/register
+
+Self-register using an invite link token. No authentication required.
+
+<ParamField body="username" type="string" required>New username.</ParamField>
+<ParamField body="email" type="string" required>Email address.</ParamField>
+<ParamField body="password" type="string" required>Password.</ParamField>
+<ParamField body="token" type="string" required>Invite token received from an admin.</ParamField>
+
+```bash
+curl -X POST http://localhost:8080/users/register \
+  -H "Content-Type: application/json" \
+  -d '{"username": "bob", "email": "bob@example.com", "password": "hunter2", "token": "<invite_jwt>"}'
+```
+
+**Response:** `201 Created` — the new `UserSchema`.
+
+---
+
+## POST /users/{id}/ra/refresh
+
+Refresh RetroAchievements progression data for a user. Requires the user to have `ra_username` set.
+
+**Required scope:** `me.write`
+
+<ParamField path="id" type="integer" required>
+  User internal ID.
+</ParamField>
+
+<ParamField body="incremental" type="boolean" default="false">
+  When `true`, only retrieves new progression since the last refresh. When `false`, fetches the full progression from scratch.
+</ParamField>
+
+```bash
+curl -X POST http://localhost:8080/users/1/ra/refresh \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"incremental": true}'
+```
+
+**Response:** `200 OK` (no body).

@@ -1,0 +1,114 @@
+---
+title: "Upgrading RomM to a New Version"
+sidebarTitle: "Upgrading"
+description: "Safely upgrade your RomM Docker container to a new version, handle database migrations, and roll back if needed."
+---
+
+RomM uses [Alembic](https://alembic.sqlalchemy.org/) for automatic database schema migrations. In most cases, upgrading is a straightforward pull-and-restart operation — RomM applies any pending migrations automatically on startup, with no manual SQL required. Following the steps below ensures you have a safe rollback path if anything goes wrong.
+
+<Warning>
+  **Always back up your database before upgrading to a new major version.** Major releases (e.g. 2.x → 3.x) may include breaking migrations that cannot be automatically reversed. A backup takes only a few seconds and can save hours of recovery work.
+</Warning>
+
+## Standard upgrade
+
+<Steps>
+  <Step title="Read the release notes">
+    Visit the [GitHub Releases page](https://github.com/rommapp/romm/releases) and read the notes for every version between your current version and the target. Look for:
+    - Breaking changes in environment variables or configuration
+    - Changes to the folder structure or volume mounts
+    - Required manual steps (rare, but listed prominently when needed)
+  </Step>
+  <Step title="Back up your database">
+    Run a database dump before pulling the new image. Replace `romm-db` with your MariaDB container name if different.
+
+    ```bash
+    docker exec romm-db mysqldump \
+      -u root -p \
+      --single-transaction \
+      --routines \
+      --triggers \
+      romm > romm_backup_$(date +%Y%m%d).sql
+    ```
+
+    Store the backup somewhere outside the Docker volume (e.g. your host's home directory or a network share).
+  </Step>
+  <Step title="Pull the new image">
+    ```bash
+    docker compose pull
+    ```
+
+    This downloads the new image without stopping your running containers.
+  </Step>
+  <Step title="Restart the container">
+    ```bash
+    docker compose up -d
+    ```
+
+    Docker Compose replaces the running container with the new image. RomM runs Alembic migrations automatically during startup before accepting requests.
+  </Step>
+  <Step title="Verify the upgrade">
+    Open RomM in your browser and navigate to **Settings → About**. Confirm the displayed version matches the release you upgraded to. Check `docker logs romm` for any errors or warnings during startup.
+  </Step>
+</Steps>
+
+<Note>
+  Alembic migrations are applied automatically — you do not need to run any SQL commands manually. If a migration fails, RomM will log the error and refuse to start, protecting your database from a partially-migrated state. Restore your backup and open an issue on GitHub if this happens.
+</Note>
+
+---
+
+## Version pinning
+
+Using `rommapp/romm:latest` always pulls the newest release, which can be convenient but means you may get a breaking change unexpectedly. For production deployments, pin to a specific version tag:
+
+```yaml
+# docker-compose.yml
+services:
+  romm:
+    image: rommapp/romm:3.10.1   # pin to an exact version
+```
+
+To upgrade to a specific version later, change the tag and run `docker compose up -d --pull always`.
+
+---
+
+## Rolling back
+
+If the upgrade causes problems, you can revert by stopping the container, restoring your database backup, and starting the old image.
+
+<Steps>
+  <Step title="Stop the container">
+    ```bash
+    docker compose down
+    ```
+  </Step>
+  <Step title="Restore the database backup">
+    ```bash
+    docker exec -i romm-db mysql -u root -p romm < romm_backup_YYYYMMDD.sql
+    ```
+  </Step>
+  <Step title="Revert the image tag">
+    Edit your `docker-compose.yml` to reference the previous version tag, then start the container again:
+
+    ```bash
+    docker compose up -d
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Checking for breaking changes
+
+Beyond the release notes, these resources are useful when evaluating an upgrade:
+
+- **[GitHub Releases](https://github.com/rommapp/romm/releases)** — full changelog with migration notes for every release
+- **[CHANGELOG.md](https://github.com/rommapp/romm/blob/release/CHANGELOG.md)** — cumulative change log in the repository
+- **[env.template](https://github.com/rommapp/romm/blob/release/env.template)** — compare against your current `.env` or `environment:` block to spot new or renamed variables
+
+Common sources of breaking changes between major versions:
+- Renamed or removed environment variables
+- Changes to the expected library folder structure
+- Removal of deprecated API endpoints
+- New required variables (e.g. `ROMM_AUTH_SECRET_KEY` was made mandatory in an earlier release)

@@ -1,28 +1,11 @@
 {
-  "$schema": "https://mintlify.com/docs.json",
-  "name": "RomM",
+  "projectType": "saas",
+  "projectName": "RomM",
+  "projectDescription": "A beautiful, powerful, self-hosted ROM manager and player that lets you scan, enrich, browse, and play your retro game collection from any browser.",
   "theme": "palm",
-  "colors": {
-    "primary": "#543c9c",
-    "light": "#a7849d",
-    "dark": "#cdb3c8"
-  },
-  "favicon": "https://media.brand.dev/1296fc71-ba79-474d-8d1d-a241dfc37b2d.svg",
-  "logo": {
-    "light": "https://media.brand.dev/9446fdad-8f54-4ae3-9cf8-fa2ad0b2f2fe.svg",
-    "dark": "https://media.brand.dev/9446fdad-8f54-4ae3-9cf8-fa2ad0b2f2fe.svg"
-  },
-  "navbar": {
-    "primary": {
-      "type": "github",
-      "href": "https://github.com/rommapp/romm"
-    }
-  },
-  "footer": {
-    "socials": {
-      "github": "https://github.com/rommapp/romm"
-    }
-  },
+  "primaryColor": "#543c9c",
+  "lightColor": "#a7849d",
+  "darkColor": "#cdb3c8",
   "navigation": {
     "tabs": [
       {
@@ -117,5 +100,46 @@
         ]
       }
     ]
-  }
+  },
+  "keyFeatures": [
+    "Scan and enrich ROM library with metadata from IGDB, MobyGames, Screenscraper, RetroAchievements, and more",
+    "Play games directly in the browser via EmulatorJS and RuffleRS",
+    "Multi-user support with role-based access control and per-platform permissions",
+    "Cross-device save file synchronization",
+    "Netplay (real-time multiplayer) room coordination",
+    "Feed generation for Tinfoil, WebRcade, PKGi, and other frontends",
+    "Support for multi-disk games, DLCs, mods, hacks, patches, and manuals",
+    "OIDC/SSO integration (Authelia, Authentik, Keycloak, etc.)",
+    "Scheduled tasks: auto-rescan, metadata updates, image conversion",
+    "REST API with OAuth2 and client token authentication",
+    "Docker-based deployment with MariaDB/MySQL/PostgreSQL support",
+    "Custom config.yml for platform mappings, scan exclusions, and metadata priority"
+  ],
+  "publicApiSurface": [
+    "POST /login — session login",
+    "POST /logout — session logout",
+    "POST /token — OAuth2 token exchange",
+    "GET /platforms — list platforms",
+    "POST /platforms — create platform",
+    "GET /roms — list ROMs (paginated)",
+    "GET /roms/{id} — get ROM details",
+    "PATCH /roms/{id} — update ROM metadata",
+    "DELETE /roms/{id} — delete ROM",
+    "GET /collections — list collections",
+    "POST /collections — create collection",
+    "GET /users — list users",
+    "POST /users — create user",
+    "GET /users/me — current user profile",
+    "GET /saves — list saves",
+    "POST /saves — upload save",
+    "GET /states — list save states",
+    "POST /tasks — trigger background task",
+    "GET /tasks — list task statuses",
+    "GET /feeds/tinfoil — Tinfoil feed",
+    "GET /feeds/webrcade — WebRcade feed",
+    "GET /search/roms — search ROMs",
+    "POST /client-tokens — create API client token",
+    "WS /ws — WebSocket for scan progress / logs",
+    "WS /netplay — WebSocket for netplay rooms"
+  ]
 }

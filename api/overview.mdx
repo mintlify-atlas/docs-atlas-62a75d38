@@ -1,0 +1,131 @@
+---
+title: "RomM REST API Overview"
+sidebarTitle: "Overview"
+description: "RomM exposes a FastAPI REST API with OAuth2, session, and client token auth. Base URL, versioning, pagination, and error format reference."
+---
+
+RomM's backend is a FastAPI application that exposes a full REST API for programmatic access to your game library. Every operation available in the web UI — scanning platforms, managing ROMs, uploading saves, running background tasks — is accessible through these endpoints, making RomM scriptable and integrable with external tools.
+
+## Base URL
+
+The default base URL depends on how you mapped ports in your `docker-compose.yml`:
+
+```
+http://<your-romm-host>:8080
+```
+
+If you mapped port 80 in your Compose file the base URL becomes `http://<your-romm-host>`.
+
+## Interactive API Docs
+
+FastAPI auto-generates two documentation UIs from the OpenAPI schema:
+
+| UI | URL | Description |
+|---|---|---|
+| Swagger UI | `/docs` | Try endpoints directly from the browser |
+| ReDoc | `/redoc` | Clean, read-only reference layout |
+
+Both are always enabled and require no additional configuration.
+
+## Authentication
+
+The RomM API supports four authentication methods. OAuth2 bearer tokens are recommended for programmatic access and integrations, while session cookies power the web UI.
+
+See the [Authentication guide](/api/authentication) for full details including token scopes, client token creation, and the OAuth2 password flow.
+
+## Pagination
+
+Most list endpoints (`GET /roms`, `GET /platforms`, etc.) use limit/offset pagination with the following query parameters:
+
+<ParamField query="limit" type="integer" default="50">
+  Maximum number of items to return per page. Maximum is 10 000 for ROMs.
+</ParamField>
+
+<ParamField query="offset" type="integer" default="0">
+  Zero-based offset into the result set.
+</ParamField>
+
+Paginated responses return an envelope with the following shape:
+
+```json
+{
+  "items": [...],
+  "total": 1024,
+  "limit": 50,
+  "offset": 0
+}
+```
+
+The ROMs endpoint extends this envelope with `char_index`, `rom_id_index`, and `filter_values` fields used by the web UI's virtual scroll and filter sidebar.
+
+## Error Format
+
+FastAPI returns errors as JSON objects with a `detail` key:
+
+```json
+{ "detail": "ROM with ID 99 not found" }
+```
+
+Validation errors from Pydantic return HTTP `422 Unprocessable Entity` with an array of error objects:
+
+```json
+{
+  "detail": [
+    {
+      "loc": ["body", "fs_slug"],
+      "msg": "field required",
+      "type": "value_error.missing"
+    }
+  ]
+}
+```
+
+## Rate Limiting
+
+RomM has no built-in rate limiting. If you need rate limiting, configure it at the reverse proxy level (nginx, Traefik, Caddy, etc.).
+
+## Content Types
+
+| Use case | Content-Type |
+|---|---|
+| Most requests and responses | `application/json` |
+| File uploads (saves, states, artwork, ROMs) | `multipart/form-data` |
+| Feed endpoints (PKGi, PKGj, Kekatsu) | `text/plain` |
+
+## WebSocket Endpoints
+
+Two WebSocket endpoints are available for real-time communication:
+
+| Endpoint | Purpose |
+|---|---|
+| `/ws` | Scan progress updates and server log streaming |
+| `/ws/netplay` | Netplay room coordination between browser clients |
+
+## Endpoint Reference
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="lock" href="/api/authentication">
+    OAuth2 password flow, token refresh, client tokens, and HTTP Basic auth
+  </Card>
+  <Card title="Platforms" icon="gamepad" href="/api/platforms">
+    List, create, update, and delete gaming platforms
+  </Card>
+  <Card title="ROMs" icon="compact-disc" href="/api/roms">
+    Browse, search, update metadata, upload, and download ROMs
+  </Card>
+  <Card title="Collections" icon="layer-group" href="/api/collections">
+    Create and manage curated and smart ROM collections
+  </Card>
+  <Card title="Users" icon="users" href="/api/users">
+    Manage user accounts, roles, and invite links
+  </Card>
+  <Card title="Saves & States" icon="floppy-disk" href="/api/saves-states">
+    Upload, download, and manage save files and save states
+  </Card>
+  <Card title="Tasks" icon="bolt" href="/api/tasks">
+    Trigger library scans, metadata updates, and cleanup jobs
+  </Card>
+  <Card title="Feeds" icon="rss" href="/api/feeds">
+    Tinfoil, WebRcade, PKGi, and other frontend client feeds
+  </Card>
+</CardGroup>

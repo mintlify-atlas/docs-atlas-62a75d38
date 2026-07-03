@@ -1,0 +1,109 @@
+---
+title: "Third-Party Apps and Community Integrations"
+sidebarTitle: "Third-Party Apps"
+description: "Connect RomM to mobile apps, desktop clients, handhelds, and community tools. Includes official Playnite plugin, Argosy Android app, Grout for CFWs, and more."
+---
+
+The RomM community has built a rich ecosystem of apps, plugins, and integrations that extend what you can do with your library. From native mobile clients and desktop launchers to CFW download tools and Discord bots, there is likely already a project that fits your workflow. Apps marked with 🔷 are officially maintained by the RomM organization.
+
+<Note>
+  Community projects are maintained by their respective authors and are not regularly reviewed by the RomM core team. Always check the project's repository for setup instructions, compatibility notes, and any known issues before use.
+</Note>
+
+## Official Apps
+
+<CardGroup cols={2}>
+  <Card title="🔷 Argosy (Android)" icon="android" href="https://github.com/rommapp/argosy-launcher">
+    Native Android client by [@tmgast](https://github.com/tmgast). Browse your RomM library, download ROMs, and launch them directly into your preferred emulator from your Android device.
+  </Card>
+  <Card title="🔷 Playnite Plugin" icon="gamepad-2" href="https://github.com/rommapp/playnite-plugin">
+    Library plugin for [Playnite](https://playnite.link/) by [@gantoine](https://github.com/gantoine). Imports your RomM collection into Playnite so you can manage and launch games from the Playnite interface alongside your other libraries.
+  </Card>
+  <Card title="🔷 Grout" icon="microchip" href="https://github.com/rommapp/grout">
+    Download client for muOS and NextUI custom firmware by [@BrandonKowalski](https://github.com/BrandonKowalski). Browse and download ROMs directly on compatible handheld devices running muOS or NextUI CFW.
+  </Card>
+</CardGroup>
+
+---
+
+## Mobile
+
+<CardGroup cols={2}>
+  <Card title="romm-ios-app" icon="apple" href="https://github.com/ilyas-hallak/romm-ios-app">
+    Native iOS app by [@ilyas-hallak](https://github.com/ilyas-hallak). Browse your RomM library and download ROMs from an iPhone or iPad.
+  </Card>
+  <Card title="romm-mobile" icon="mobile" href="https://github.com/mattsays/romm-mobile">
+    Cross-platform mobile app (Android and soon iOS) by [@mattsays](https://github.com/mattsays). Built with Flutter, it provides a clean interface for browsing and downloading from your library.
+  </Card>
+</CardGroup>
+
+---
+
+## Desktop
+
+<CardGroup cols={2}>
+  <Card title="RommBrowser" icon="app-window" href="https://github.com/smurflabs/RommBrowser/">
+    Electron-based desktop client by [@smurflabs](https://github.com/smurflabs). Wraps the RomM web interface in a native desktop window with additional OS integration features.
+  </Card>
+  <Card title="RetroArch Sync" icon="rotate-cw" href="https://github.com/Covin90/romm-retroarch-sync">
+    Sync your RetroArch library with RomM by [@Covin90](https://github.com/Covin90). Keeps your RetroArch playlists in sync with your RomM collection.
+  </Card>
+  <Card title="RomMate" icon="library" href="https://github.com/brenoprata10/rommate">
+    Desktop app for browsing your collection by [@brenoprata10](https://github.com/brenoprata10). Provides a polished native interface for exploring and managing your RomM library.
+  </Card>
+  <Card title="romm-client" icon="monitor" href="https://github.com/chaun14/romm-client">
+    Desktop client by [@chaun14](https://github.com/chaun14). A lightweight client application for interacting with your RomM instance from a desktop environment.
+  </Card>
+</CardGroup>
+
+---
+
+## Handhelds
+
+<CardGroup cols={2}>
+  <Card title="DeckRommSync" icon="gamepad" href="https://github.com/PeriBluGaming/DeckRommSync-Standalone">
+    SteamOS downloader and syncer by [@PeriBluGaming](https://github.com/PeriBluGaming). Designed for Steam Deck users running SteamOS — browse and download ROMs from your RomM library directly onto the device.
+  </Card>
+  <Card title="SwitchRomM" icon="wifi" href="https://github.com/Shalasere/SwitchRomM">
+    Homebrew NRO for Nintendo Switch by [@Shalasere](https://github.com/Shalasere). Browse and download ROM files from your RomM library directly on a homebrewed Switch console.
+  </Card>
+</CardGroup>
+
+---
+
+## Other Integrations
+
+<CardGroup cols={2}>
+  <Card title="romm-comm" icon="message-circle" href="https://github.com/idio-sync/romm-comm">
+    Discord bot by [@idio-sync](https://github.com/idio-sync). Interact with your RomM library from Discord — search for ROMs, check library stats, and more.
+  </Card>
+  <Card title="GGRequestz" icon="search" href="https://github.com/XTREEMMAK/ggrequestz">
+    Game discovery and request tool by [@XTREEMMAK](https://github.com/XTREEMMAK). Lets users submit game requests and tracks which titles are missing from your library.
+  </Card>
+  <Card title="Syncthing Sync" icon="refresh-cw" href="https://github.com/amn-96/romm_syncthing_sync">
+    Push a Syncthing-managed library to RomM by [@amn-96](https://github.com/amn-96). Automates syncing files managed by Syncthing into your RomM library folder.
+  </Card>
+</CardGroup>
+
+---
+
+## Connecting to the RomM API
+
+All third-party apps communicate with RomM through its REST API. The API is fully documented and available at `/api/docs` (Swagger UI) or `/api/redoc` on your RomM instance.
+
+### Authentication
+
+Most apps authenticate using one of the following methods:
+
+- **Username and password** — standard OAuth2 password flow, returns a short-lived access token and a refresh token
+- **Client tokens** — long-lived API tokens scoped to specific permissions, generated in **Settings → API Tokens**
+
+For apps that need persistent access without storing your password, create a dedicated client token with only the scopes required by the app (typically `roms.read` and `platforms.read`).
+
+<Tip>
+  See the [Authentication guide](/getting-started/authentication) for details on generating client tokens and managing scopes.
+</Tip>
+
+### Finding the API docs
+
+Open `http://<your-romm-host>/api/docs` in a browser to see all available endpoints, request/response schemas, and an interactive testing interface.

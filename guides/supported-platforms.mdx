@@ -1,0 +1,172 @@
+---
+title: "Supported Gaming Platforms in RomM"
+sidebarTitle: "Supported Platforms"
+description: "RomM supports 400+ gaming platforms. Find your platform's slug for folder naming, and learn about platform detection and custom mappings."
+---
+
+RomM supports over 400 gaming platforms, each identified by a canonical **slug** — a short, lowercase identifier that ties together your folder structure, metadata lookups, and emulator configuration. Getting the slug right is the single most important step when setting up your library.
+
+## The Slug System
+
+Every platform in RomM has a unique slug. The slug serves three purposes:
+
+1. **Folder naming** — RomM discovers your ROMs by matching the name of each subfolder inside your `roms/` directory to a known platform slug (e.g. `roms/snes/`, `roms/psx/`, `roms/switch/`).
+2. **Metadata matching** — The slug is used to query metadata providers (IGDB, MobyGames, Screenscraper, etc.) for the correct platform database.
+3. **Emulator identification** — EmulatorJS uses the slug to select the appropriate core for in-browser play.
+
+<Note>
+  Platform folder matching is **case-insensitive** — `SNES/`, `Snes/`, and `snes/`
+  are all treated identically. Use lowercase by convention to keep things tidy.
+</Note>
+
+## Platform Slug Reference
+
+The table below lists a broad selection of supported platforms. This list is sourced directly from RomM's `UniversalPlatformSlug` enum.
+
+### Nintendo
+
+| Platform | Slug |
+|---|---|
+| Nintendo Entertainment System | `nes` |
+| Famicom | `famicom` |
+| Famicom Disk System | `fds` |
+| Super Nintendo | `snes` |
+| Nintendo 64 | `n64` |
+| Nintendo 64DD | `64dd` |
+| GameCube | `ngc` |
+| Wii | `wii` |
+| Wii U | `wiiu` |
+| Nintendo Switch | `switch` |
+| Nintendo Switch 2 | `switch-2` |
+| Game Boy | `gb` |
+| Game Boy Color | `gbc` |
+| Game Boy Advance | `gba` |
+| Nintendo DS | `nds` |
+| Nintendo DSi | `nintendo-dsi` |
+| Nintendo 3DS | `3ds` |
+| New Nintendo 3DS | `new-nintendo-3ds` |
+| Satellaview | `satellaview` |
+| Virtual Boy | `virtualboy` |
+| Pokémon Mini | `pokemon-mini` |
+
+### Sega
+
+| Platform | Slug |
+|---|---|
+| Sega Genesis / Mega Drive | `genesis` |
+| Sega Master System | `sms` |
+| Sega 32X | `sega32` |
+| Sega CD | `segacd` |
+| Sega Saturn | `saturn` |
+| Sega Dreamcast | `dc` |
+| Game Gear | `gamegear` |
+| SG-1000 | `sg1000` |
+| Sega Pico | `sega-pico` |
+
+### Sony
+
+| Platform | Slug |
+|---|---|
+| PlayStation | `psx` |
+| PlayStation 2 | `ps2` |
+| PlayStation 3 | `ps3` |
+| PlayStation 4 | `ps4` |
+| PlayStation 5 | `ps5` |
+| PlayStation Portable | `psp` |
+| PlayStation Vita | `psvita` |
+
+### Atari
+
+| Platform | Slug |
+|---|---|
+| Atari 2600 | `atari2600` |
+| Atari 5200 | `atari5200` |
+| Atari 7800 | `atari7800` |
+| Atari 800 | `atari800` |
+| Atari ST | `atari-st` |
+| Atari Jaguar | `jaguar` |
+| Atari Jaguar CD | `atari-jaguar-cd` |
+| Atari Lynx | `lynx` |
+| Atari XEGS | `atari-xegs` |
+
+### Microsoft
+
+| Platform | Slug |
+|---|---|
+| Xbox | `xbox` |
+| Xbox 360 | `xbox360` |
+| Xbox One | `xboxone` |
+| Xbox Series X/S | `series-x-s` |
+| MS-DOS | `dos` |
+| Windows | `win` |
+
+### NEC / Hudson
+
+| Platform | Slug |
+|---|---|
+| PC Engine / TurboGrafx-16 | `tg16` |
+| TurboGrafx-CD | `turbografx-cd` |
+| PC-FX | `pc-fx` |
+
+### SNK / Neo Geo
+
+| Platform | Slug |
+|---|---|
+| Neo Geo AES | `neogeoaes` |
+| Neo Geo MVS | `neogeomvs` |
+| Neo Geo CD | `neo-geo-cd` |
+| Neo Geo Pocket | `neo-geo-pocket` |
+| Neo Geo Pocket Color | `neo-geo-pocket-color` |
+
+### Arcade & Multi-Platform
+
+| Platform | Slug |
+|---|---|
+| Arcade (MAME) | `arcade` |
+| CPS-1 | `cps1` |
+| CPS-2 | `cps2` |
+| CPS-3 | `cps3` |
+| Model 1 | `model1` |
+| Model 2 | `model2` |
+| Model 3 | `model3` |
+| ScummVM | `scummvm` |
+| Flash | `browser` |
+| 3DO Interactive Multiplayer | `3do` |
+| Amiga | `amiga` |
+| Commodore 64 | `c64` |
+| MSX | `msx` |
+| MSX2 | `msx2` |
+
+<Tip>
+  The full list of slugs — including IGDB platform IDs — is available directly in
+  RomM under **Settings → Platforms**. You can also browse it in the source at
+  `backend/handler/metadata/base_handler.py`.
+</Tip>
+
+## Custom Platform Mappings
+
+If your folder names differ from RomM's canonical slugs, use the `system.platforms`
+mapping in `config.yml` to create aliases. The key is your folder name; the value is
+the RomM slug it should be treated as.
+
+```yaml
+system:
+  platforms:
+    gc: ngc      # 'gc' folder → GameCube
+    ps1: psx     # 'ps1' folder → PlayStation
+```
+
+## Platform Versions
+
+Some platforms are regional or hardware variants of a parent platform. Use
+`system.versions` to associate a child slug with its parent platform (currently
+used by IGDB lookups only):
+
+```yaml
+system:
+  versions:
+    naomi: arcade   # Sega NAOMI → Arcade
+```
+
+This tells RomM to look up `naomi` titles in the `arcade` category on IGDB instead
+of searching for a dedicated "Naomi" platform entry.

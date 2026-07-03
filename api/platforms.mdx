@@ -1,0 +1,222 @@
+---
+title: "Platforms API: List, Create, and Manage Platforms"
+sidebarTitle: "Platforms"
+description: "REST endpoints for managing gaming platforms in RomM. List all platforms, get platform details, add new platforms, and delete platforms."
+---
+
+The Platforms API lets you query and manage the gaming platforms in your RomM library. Platforms map directly to filesystem slugs under your library base path — each platform folder you create becomes a platform record when scanned.
+
+---
+
+## GET /platforms
+
+Retrieve all platforms visible to the authenticated user.
+
+**Required scope:** `platforms.read`
+
+<ParamField query="updated_after" type="string">
+  ISO 8601 datetime with timezone (e.g. `2024-01-01T00:00:00Z`). Returns only platforms updated after this timestamp. Useful for incremental sync.
+</ParamField>
+
+```bash
+curl http://localhost:8080/platforms \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response:** Array of platform objects.
+
+<ResponseField name="id" type="integer">
+  Internal platform ID.
+</ResponseField>
+
+<ResponseField name="slug" type="string">
+  Canonical slug used by metadata providers (e.g. `nintendo-64`).
+</ResponseField>
+
+<ResponseField name="fs_slug" type="string">
+  Filesystem folder name under the library base path (e.g. `n64`).
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Official platform name (e.g. `Nintendo 64`).
+</ResponseField>
+
+<ResponseField name="display_name" type="string">
+  Computed field: returns `custom_name` if set, otherwise `name`.
+</ResponseField>
+
+<ResponseField name="custom_name" type="string | null">
+  User-set override for the display name.
+</ResponseField>
+
+<ResponseField name="rom_count" type="integer">
+  Number of ROMs associated with this platform.
+</ResponseField>
+
+<ResponseField name="fs_size_bytes" type="integer">
+  Total size of all ROM files on disk for this platform.
+</ResponseField>
+
+<ResponseField name="igdb_id" type="integer | null">
+  IGDB platform ID.
+</ResponseField>
+
+<ResponseField name="moby_id" type="integer | null">
+  MobyGames platform ID.
+</ResponseField>
+
+<ResponseField name="ss_id" type="integer | null">
+  ScreenScraper platform ID.
+</ResponseField>
+
+<ResponseField name="ra_id" type="integer | null">
+  RetroAchievements platform ID.
+</ResponseField>
+
+<ResponseField name="category" type="string | null">
+  Platform category (e.g. `console`, `portable`, `computer`).
+</ResponseField>
+
+<ResponseField name="generation" type="integer | null">
+  Console generation number.
+</ResponseField>
+
+<ResponseField name="firmware" type="array">
+  List of firmware files associated with this platform.
+</ResponseField>
+
+<ResponseField name="is_unidentified" type="boolean">
+  True if the platform could not be matched to any metadata source.
+</ResponseField>
+
+<ResponseField name="is_identified" type="boolean">
+  True if the platform was matched to at least one metadata source.
+</ResponseField>
+
+<ResponseField name="missing_from_fs" type="boolean">
+  True if the platform folder no longer exists on disk.
+</ResponseField>
+
+<ResponseField name="created_at" type="string">
+  ISO 8601 creation timestamp (UTC).
+</ResponseField>
+
+<ResponseField name="updated_at" type="string">
+  ISO 8601 last-updated timestamp (UTC).
+</ResponseField>
+
+---
+
+## GET /platforms/identifiers
+
+Retrieve just the IDs of all visible platforms. Useful for sync clients that want a lightweight list to diff against.
+
+**Required scope:** `platforms.read`
+
+```bash
+curl http://localhost:8080/platforms/identifiers \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response:** `[1, 2, 3, ...]`
+
+---
+
+## GET /platforms/supported
+
+Retrieve the full list of platforms that RomM supports (slug → name mapping). This list is static and does not reflect what is in your library.
+
+**Required scope:** `platforms.read`
+
+```bash
+curl http://localhost:8080/platforms/supported \
+  -H "Authorization: Bearer <token>"
+```
+
+---
+
+## POST /platforms
+
+Add a new platform to the library. RomM creates the platform folder on disk (if it doesn't already exist) and immediately scans it.
+
+**Required scope:** `platforms.write`
+
+<ParamField body="fs_slug" type="string" required>
+  Filesystem slug for the new platform. Must match an entry in the supported platforms list (e.g. `n64`, `gba`, `psx`).
+</ParamField>
+
+```bash
+curl -X POST http://localhost:8080/platforms \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"fs_slug": "gba"}'
+```
+
+**Response:** `201 Created` — the newly created `PlatformSchema` object.
+
+---
+
+## GET /platforms/{id}
+
+Retrieve a single platform by its internal ID.
+
+**Required scope:** `platforms.read`
+
+<ParamField path="id" type="integer" required>
+  Platform internal ID (must be ≥ 1).
+</ParamField>
+
+```bash
+curl http://localhost:8080/platforms/3 \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response:** A single `PlatformSchema` object, or `404` if not found.
+
+---
+
+## PUT /platforms/{id}
+
+Update a platform's custom display name.
+
+**Required scope:** `platforms.write`
+
+<ParamField path="id" type="integer" required>
+  Platform internal ID.
+</ParamField>
+
+<ParamField body="custom_name" type="string | null">
+  Custom display name to override the default platform name. Pass `null` to clear the override and revert to the canonical name.
+</ParamField>
+
+```bash
+curl -X PUT http://localhost:8080/platforms/3 \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"custom_name": "Game Boy Advance (My Library)"}'
+```
+
+**Response:** Updated `PlatformSchema` object.
+
+---
+
+## DELETE /platforms/{id}
+
+Delete a platform and all of its associated ROM records from the database. This does **not** delete files from disk.
+
+**Required scope:** `platforms.write`
+
+<ParamField path="id" type="integer" required>
+  Platform internal ID.
+</ParamField>
+
+```bash
+curl -X DELETE http://localhost:8080/platforms/3 \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response:** `204 No Content` on success, `404` if the platform was not found.
+
+<Warning>
+  Deleting a platform removes all ROM metadata records associated with it from the database. The actual ROM files on disk are not affected. Re-scanning the library will re-import them.
+</Warning>

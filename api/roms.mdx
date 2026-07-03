@@ -1,0 +1,449 @@
+---
+title: "ROMs API: Browse, Search, and Manage Games"
+sidebarTitle: "ROMs"
+description: "REST endpoints for managing ROMs in RomM. List, search, get details, update metadata, upload files, and delete ROMs."
+---
+
+The ROMs API is the core of RomM's programmatic interface, providing full CRUD access to your game library. Endpoints cover everything from browsing and filtering to metadata editing, file downloads, patch application, and bulk deletion.
+
+---
+
+## GET /roms
+
+Retrieve a paginated, filtered, and sorted list of ROMs. This is the primary browse endpoint and powers the web UI's game library view.
+
+**Required scope:** `roms.read`
+
+### Pagination
+
+<ParamField query="limit" type="integer" default="50">
+  Number of ROMs per page (1–10 000).
+</ParamField>
+
+<ParamField query="offset" type="integer" default="0">
+  Zero-based page offset.
+</ParamField>
+
+### Filters
+
+<ParamField query="platform_ids" type="integer[]">
+  Filter by one or more platform IDs. Repeat the parameter for multiple values.
+</ParamField>
+
+<ParamField query="search_term" type="string">
+  Full-text search across ROM names.
+</ParamField>
+
+<ParamField query="collection_id" type="integer">
+  Filter to ROMs in a specific collection.
+</ParamField>
+
+<ParamField query="virtual_collection_id" type="string">
+  Filter to ROMs in a virtual collection.
+</ParamField>
+
+<ParamField query="smart_collection_id" type="integer">
+  Filter to ROMs in a smart collection.
+</ParamField>
+
+<ParamField query="matched" type="boolean">
+  `true` returns only ROMs matched to at least one metadata source; `false` returns unmatched ROMs only.
+</ParamField>
+
+<ParamField query="favorite" type="boolean">
+  Filter by the current user's favourite flag.
+</ParamField>
+
+<ParamField query="duplicate" type="boolean">
+  Filter ROMs flagged as duplicates.
+</ParamField>
+
+<ParamField query="last_played" type="boolean">
+  `true` returns ROMs the current user has played before.
+</ParamField>
+
+<ParamField query="playable" type="boolean">
+  Filter to ROMs that can be launched in the browser emulator.
+</ParamField>
+
+<ParamField query="missing" type="boolean">
+  Filter ROMs that are absent from the filesystem.
+</ParamField>
+
+<ParamField query="has_ra" type="boolean">
+  Filter ROMs with RetroAchievements data.
+</ParamField>
+
+<ParamField query="has_saves" type="boolean">
+  Filter ROMs the current user has saves for.
+</ParamField>
+
+<ParamField query="has_states" type="boolean">
+  Filter ROMs the current user has save states for.
+</ParamField>
+
+<ParamField query="verified" type="boolean">
+  Filter ROMs verified by Hasheous.
+</ParamField>
+
+<ParamField query="genres" type="string[]">
+  Filter by genre tags (repeat for multiple). Logic controlled by `genres_logic`.
+</ParamField>
+
+<ParamField query="franchises" type="string[]">
+  Filter by franchise. Logic controlled by `franchises_logic`.
+</ParamField>
+
+<ParamField query="companies" type="string[]">
+  Filter by associated company. Logic controlled by `companies_logic`.
+</ParamField>
+
+<ParamField query="age_ratings" type="string[]">
+  Filter by age rating. Logic controlled by `age_ratings_logic`.
+</ParamField>
+
+<ParamField query="regions" type="string[]">
+  Filter by region tag (e.g. `USA`, `EUR`). Logic controlled by `regions_logic`.
+</ParamField>
+
+<ParamField query="languages" type="string[]">
+  Filter by language tag. Logic controlled by `languages_logic`.
+</ParamField>
+
+<ParamField query="tags" type="string[]">
+  Filter by custom filename tags (e.g. `Proto`, `Beta`). Logic controlled by `tags_logic`.
+</ParamField>
+
+<ParamField query="metadata_providers" type="string[]">
+  Filter by matched provider: `igdb`, `moby`, `ss`, `ra`, `launchbox`, `hasheous`, `flashpoint`, `hltb`, `gamelist`, `libretro`.
+</ParamField>
+
+<ParamField query="statuses" type="string[]">
+  Filter by user-set play status. Logic controlled by `statuses_logic`.
+</ParamField>
+
+<ParamField query="player_counts" type="string[]">
+  Filter by player count. Logic controlled by `player_counts_logic`.
+</ParamField>
+
+### Logic Operators
+
+Each multi-value filter has a corresponding `_logic` parameter that accepts `any` (OR), `all` (AND), or `none` (NOT). For example: `genres_logic=all` returns only ROMs that match every listed genre.
+
+### Sorting
+
+<ParamField query="order_by" type="string" default="">
+  Field to sort by (e.g. `name`, `updated_at`). Leave empty to sort by search relevance when a `search_term` is given (MySQL/MariaDB only; other databases fall back to name).
+</ParamField>
+
+<ParamField query="order_dir" type="string" default="asc">
+  Sort direction: `asc` or `desc`.
+</ParamField>
+
+### Incremental Sync
+
+<ParamField query="updated_after" type="string">
+  ISO 8601 datetime. Returns only ROMs updated after this timestamp.
+</ParamField>
+
+### Other Options
+
+<ParamField query="group_by_meta_id" type="boolean" default="false">
+  Group sibling ROMs (same game, multiple files) by their shared metadata ID.
+</ParamField>
+
+<ParamField query="with_files" type="boolean" default="false">
+  Include each ROM's file entries in the response.
+</ParamField>
+
+<ParamField query="with_char_index" type="boolean" default="true">
+  Include a character index mapping for the AlphaStrip UI component.
+</ParamField>
+
+<ParamField query="with_filter_values" type="boolean" default="true">
+  Include the set of available filter values (genres, regions, etc.) for the filter sidebar.
+</ParamField>
+
+```bash
+curl "http://localhost:8080/roms?platform_ids=3&limit=25&order_by=name" \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response envelope:**
+
+```json
+{
+  "items": [...],
+  "total": 512,
+  "limit": 25,
+  "offset": 0,
+  "char_index": {"A": 0, "B": 14, ...},
+  "rom_id_index": [101, 102, ...],
+  "filter_values": {
+    "genres": ["Action", "RPG"],
+    "regions": ["USA", "EUR"],
+    ...
+  }
+}
+```
+
+---
+
+## GET /roms/identifiers
+
+Retrieve only the IDs of all ROMs visible to the current user. Lightweight alternative to the full list.
+
+**Required scope:** `roms.read`
+
+```bash
+curl http://localhost:8080/roms/identifiers \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response:** `[101, 102, 103, ...]`
+
+---
+
+## GET /roms/download
+
+Download multiple ROMs as a single zip file.
+
+**Required scope:** `roms.read`
+
+<ParamField query="rom_ids" type="string" required>
+  Comma-separated list of ROM IDs (e.g. `1,2,3`).
+</ParamField>
+
+<ParamField query="filename" type="string">
+  Custom name for the output zip file (optional).
+</ParamField>
+
+```bash
+curl "http://localhost:8080/roms/download?rom_ids=1,2,3" \
+  -H "Authorization: Bearer <token>" \
+  -o roms.zip
+```
+
+---
+
+## GET /roms/by-metadata-provider
+
+Look up a single ROM by its external metadata ID. At least one ID parameter must be provided.
+
+**Required scope:** `roms.read` (unless `DISABLE_DOWNLOAD_ENDPOINT_AUTH=true`)
+
+<ParamField query="igdb_id" type="integer">IGDB game ID.</ParamField>
+<ParamField query="moby_id" type="integer">MobyGames game ID.</ParamField>
+<ParamField query="ss_id" type="integer">ScreenScraper game ID.</ParamField>
+<ParamField query="ra_id" type="integer">RetroAchievements game ID.</ParamField>
+<ParamField query="launchbox_id" type="integer">LaunchBox game ID.</ParamField>
+<ParamField query="hasheous_id" type="integer">Hasheous game ID.</ParamField>
+<ParamField query="tgdb_id" type="integer">TheGamesDB game ID.</ParamField>
+<ParamField query="flashpoint_id" type="string">Flashpoint game ID.</ParamField>
+<ParamField query="hltb_id" type="integer">HowLongToBeat game ID.</ParamField>
+
+```bash
+curl "http://localhost:8080/roms/by-metadata-provider?igdb_id=2113" \
+  -H "Authorization: Bearer <token>"
+```
+
+---
+
+## GET /roms/{id}
+
+Retrieve full details for a single ROM, including metadata, file list, platform info, and user-specific data.
+
+**Required scope:** `roms.read`
+
+<ParamField path="id" type="integer" required>
+  ROM internal ID.
+</ParamField>
+
+```bash
+curl http://localhost:8080/roms/42 \
+  -H "Authorization: Bearer <token>"
+```
+
+---
+
+## GET /roms/{id}/files
+
+Retrieve the file record for a specific ROM file by its file ID.
+
+**Required scope:** `roms.read`
+
+<ParamField path="id" type="integer" required>
+  ROM file internal ID.
+</ParamField>
+
+```bash
+curl http://localhost:8080/roms/15/files \
+  -H "Authorization: Bearer <token>"
+```
+
+---
+
+## GET /roms/{id}/files/content/{file_name}
+
+Download a ROM file by its file ID.
+
+**Required scope:** `roms.read` (unless `DISABLE_DOWNLOAD_ENDPOINT_AUTH=true`)
+
+<ParamField path="id" type="integer" required>
+  ROM file internal ID.
+</ParamField>
+
+<ParamField path="file_name" type="string" required>
+  The file name (must match the record; used for Content-Disposition only — the actual file served is determined by the database record for security).
+</ParamField>
+
+```bash
+curl "http://localhost:8080/roms/15/files/content/SuperMario64.z64" \
+  -H "Authorization: Bearer <token>" \
+  -o SuperMario64.z64
+```
+
+Audio/soundtrack files are served inline with an appropriate audio MIME type; game ROMs are served as `application/octet-stream` with `Content-Disposition: attachment`.
+
+---
+
+## PATCH /roms/{id}
+
+Update a ROM's metadata. Accepts `multipart/form-data` so that cover artwork can be uploaded in the same request.
+
+**Required scope:** `roms.write`
+
+<ParamField path="id" type="integer" required>
+  ROM internal ID.
+</ParamField>
+
+<Expandable title="Form fields">
+  <ParamField body="name" type="string">Display name override.</ParamField>
+  <ParamField body="summary" type="string">Game summary / description.</ParamField>
+  <ParamField body="fs_name" type="string">Filesystem filename. Changing this renames the file on disk.</ParamField>
+  <ParamField body="igdb_id" type="string">IGDB game ID. Providing a new ID fetches fresh IGDB metadata.</ParamField>
+  <ParamField body="moby_id" type="string">MobyGames game ID.</ParamField>
+  <ParamField body="ss_id" type="string">ScreenScraper game ID.</ParamField>
+  <ParamField body="ra_id" type="string">RetroAchievements game ID.</ParamField>
+  <ParamField body="launchbox_id" type="string">LaunchBox game ID.</ParamField>
+  <ParamField body="hasheous_id" type="string">Hasheous game ID.</ParamField>
+  <ParamField body="flashpoint_id" type="string">Flashpoint game ID.</ParamField>
+  <ParamField body="hltb_id" type="string">HowLongToBeat game ID.</ParamField>
+  <ParamField body="url_cover" type="string">Remote URL to fetch and store as cover art.</ParamField>
+  <ParamField body="artwork" type="file">Cover image file to upload directly (JPEG/PNG/WebP).</ParamField>
+  <ParamField body="remove_cover" type="boolean">Set to `true` to remove the existing cover image.</ParamField>
+</Expandable>
+
+```bash
+curl -X PATCH http://localhost:8080/roms/42 \
+  -H "Authorization: Bearer <token>" \
+  -F "name=Super Mario 64 (USA)" \
+  -F "igdb_id=2113"
+```
+
+**Response:** Full `DetailedRomSchema` with updated fields.
+
+---
+
+## POST /roms/{id}/patch
+
+Apply a ROM patch file server-side and download the patched output. Both the base ROM file and the patch file must already exist in your library.
+
+**Required scope:** `roms.read`
+
+<ParamField path="id" type="integer" required>
+  ROM file ID of the **base** game file to patch.
+</ParamField>
+
+<ParamField body="patch_file_id" type="integer" required>
+  ROM file ID of the patch file (`.ips`, `.bps`, `.xdelta`, etc.).
+</ParamField>
+
+<ParamField body="output_file_name" type="string">
+  Custom name for the patched output file. If omitted, RomM derives one from the ROM and patch filenames.
+</ParamField>
+
+```bash
+curl -X POST http://localhost:8080/roms/15/patch \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"patch_file_id": 28}' \
+  -o patched_rom.sfc
+```
+
+The response is the patched binary file (`application/octet-stream`). The `X-Patch-Validated` response header is `true` when the patch's source checksum matched the base ROM, or `false` when it did not (the output may still be usable).
+
+<Note>
+  There is a maximum file size for patching controlled by `ROM_PATCHER_MAX_FILE_SIZE_BYTES`. Oversized files return `400 Bad Request`.
+</Note>
+
+---
+
+## PUT /roms/{id}/props
+
+Update ROM properties specific to the current user — play status, ratings, backlog flag, hidden flag, etc.
+
+**Required scope:** `roms.user.write`
+
+<ParamField path="id" type="integer" required>
+  ROM internal ID.
+</ParamField>
+
+<ParamField query="update_last_played" type="boolean" default="false">
+  Set the last-played timestamp to now.
+</ParamField>
+
+<ParamField query="remove_last_played" type="boolean" default="false">
+  Clear the last-played timestamp.
+</ParamField>
+
+<Expandable title="Request body fields">
+  <ParamField body="is_main_sibling" type="boolean">Mark as the primary file in a sibling group.</ParamField>
+  <ParamField body="backlogged" type="boolean">Add/remove from the backlog.</ParamField>
+  <ParamField body="now_playing" type="boolean">Mark as currently being played.</ParamField>
+  <ParamField body="hidden" type="boolean">Hide/show this ROM for the current user.</ParamField>
+  <ParamField body="rating" type="integer">User rating 0–10.</ParamField>
+  <ParamField body="difficulty" type="integer">User difficulty rating 0–10.</ParamField>
+  <ParamField body="completion" type="integer">User completion percentage 0–100.</ParamField>
+  <ParamField body="status" type="string">User play status value (e.g. `playing`, `completed`, `abandoned`).</ParamField>
+</Expandable>
+
+```bash
+curl -X PUT http://localhost:8080/roms/42/props \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"rating": 9, "status": "completed"}'
+```
+
+---
+
+## POST /roms/delete
+
+Delete one or more ROMs. Optionally also remove the files from disk.
+
+**Required scope:** `roms.write`
+
+<ParamField body="roms" type="integer[]" required>
+  List of ROM IDs to delete from the database.
+</ParamField>
+
+<ParamField body="delete_from_fs" type="integer[]">
+  Subset of `roms` IDs to also delete from the filesystem. Defaults to an empty list (database-only deletion).
+</ParamField>
+
+```bash
+curl -X POST http://localhost:8080/roms/delete \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"roms": [42, 43], "delete_from_fs": [42]}'
+```
+
+**Response:**
+
+```json
+{
+  "successful_items": 2,
+  "failed_items": 0,
+  "errors": []
+}
+```

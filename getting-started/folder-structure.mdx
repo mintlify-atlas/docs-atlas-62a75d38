@@ -1,0 +1,201 @@
+---
+title: "ROM Library Folder Structure for RomM"
+sidebarTitle: "Folder Structure"
+description: "Learn how to organize your ROM files so RomM can automatically detect platforms, multi-disk games, DLCs, mods, patches, and manuals."
+---
+
+RomM scans the directory you mount at `/romm/library` inside the container and builds your entire game database from what it finds there. Getting the folder layout right is the most important step before running your first scan — the structure tells RomM which platform each game belongs to, whether a game spans multiple files, and how to categorize extras like DLC or manuals.
+
+## Top-level layout
+
+The library directory contains a `roms/` subfolder, and beneath that one folder per platform. Each platform folder holds either individual ROM files (single-file games) or subfolders (multi-file games):
+
+```text
+library/
+├── bios/
+│   └── scph1001.bin
+└── roms/
+    ├── switch/
+    │   └── metroid-prime-remastered.xci
+    ├── snes/
+    │   ├── Super Mario World (USA).sfc
+    │   └── Chrono Trigger (USA).sfc
+    ├── psx/
+    │   ├── final-fantasy-vii/
+    │   │   ├── disc1.bin
+    │   │   └── disc2.bin
+    │   └── Castlevania - Symphony of the Night (USA).bin
+    └── ngc/
+        └── The Legend of Zelda - Wind Waker (USA).iso
+```
+
+<Note>
+  RomM normalizes platform folder names when matching them to its internal platform list — capitalization and spaces are ignored during lookup. A folder named `Nintendo Switch`, `nintendo-switch`, or `switch` will all resolve correctly as long as an alias or slug match exists. Using the exact RomM slug is still the most reliable approach.
+</Note>
+
+## Configuring the `roms/` subfolder name
+
+The `roms/` subfolder name is not hardcoded. You can change it with the `filesystem.roms_folder` key in your `config.yml`:
+
+```yaml
+filesystem:
+  roms_folder: 'retro_games'
+```
+
+With this setting RomM will look for games at `library/retro_games/<platform>/` instead of `library/roms/<platform>/`. The default value is `roms`.
+
+RomM also supports an inverted layout (Structure B) where the platform folder sits at the top level and contains the `roms` subfolder:
+
+```text
+library/
+└── snes/
+    └── roms/
+        └── Super Mario World (USA).sfc
+```
+
+Structure A (`roms/{platform}`) takes priority when both layouts are detected simultaneously, so existing libraries will not break if a stray Structure B directory appears alongside them.
+
+## Platform folder names and custom mappings
+
+<Tip>
+  Use exact RomM platform slugs as your folder names for the best automatic metadata matching. Slugs such as `snes`, `psx`, `ngc`, `switch`, `gba`, and `n64` map directly to the corresponding IGDB and Screenscraper platform entries. A full list of supported slugs is available on the [Supported Platforms](https://docs.romm.app/latest/Platforms-and-Players/Supported-Platforms/) page.
+</Tip>
+
+If your existing library uses different folder names — for example `gc` instead of `ngc`, or `ps1` instead of `psx` — you can define custom mappings in `config.yml` without renaming any directories:
+
+```yaml
+system:
+  platforms:
+    gc: ngc      # treat the 'gc' folder as Nintendo GameCube (ngc)
+    ps1: psx     # treat the 'ps1' folder as PlayStation (psx)
+```
+
+The format is `[your folder name]: [RomM platform slug]`. Platforms listed in `exclude.platforms` are skipped entirely during scans:
+
+```yaml
+exclude:
+  platforms:
+    - homebrew
+    - tools
+```
+
+## Multi-file games
+
+Any **subfolder** found directly inside a platform directory is treated by RomM as a multi-file game. This covers multi-disk titles, games with separate update or DLC files, and any other release that ships as more than one file:
+
+```text
+roms/
+└── psx/
+    └── final-fantasy-vii/       ← treated as one multi-file game
+        ├── disc1.bin
+        ├── disc1.cue
+        ├── disc2.bin
+        └── disc2.cue
+```
+
+All files inside the subfolder are associated with a single library entry. Hashes are computed across the top-level files in the subfolder and combined into a composite hash used for database matching.
+
+<Note>
+  RomM does **not** recurse further into subdirectories inside a multi-file game folder. Files nested more than one level deep inside the game subfolder are ignored during hash calculation but are still indexed as part of the game entry.
+</Note>
+
+## DLC, updates, patches, mods, and other categories
+
+When files are organised inside a multi-file game subfolder, RomM automatically categorizes them based on the **subfolder path components**. The recognized category names and their folder-name conventions are:
+
+| Category | Folder name (singular or plural) | Example path |
+|---|---|---|
+| `dlc` | `dlc` / `dlcs` | `game/dlcs/expansion.pkg` |
+| `update` | `update` / `updates` | `game/updates/v1.1.nsp` |
+| `patch` | `patch` / `patches` | `game/patches/fix.ips` |
+| `mod` | `mod` / `mods` | `game/mods/texture-pack.zip` |
+| `hack` | `hack` / `hacks` | `game/hacks/randomizer.ips` |
+| `manual` | `manual` / `manuals` | `game/manuals/booklet.pdf` |
+| `demo` | `demo` / `demos` | `game/demos/trial.bin` |
+| `translation` | `translation` / `translations` | `game/translations/en.ips` |
+| `cheat` | `cheat` / `cheats` | `game/cheats/codes.cht` |
+| `soundtrack` | `soundtrack` / `soundtracks` | `game/soundtracks/ost.flac` |
+
+A full example with multiple categories for a single Switch title:
+
+```text
+roms/
+└── switch/
+    └── The Legend of Zelda - Tears of the Kingdom/
+        ├── base-game.xci
+        ├── updates/
+        │   └── v1.2.1.nsp
+        └── dlcs/
+            └── expansion-pass.nsp
+```
+
+You can exclude specific file extensions or filenames from multi-file game scans using the `exclude.roms.multi_file` section in `config.yml`:
+
+```yaml
+exclude:
+  roms:
+    multi_file:
+      parts:
+        extensions:
+          - xml
+          - txt
+        names:
+          - 'data.xml'
+          - '._*'
+```
+
+## Tag support
+
+RomM parses tags embedded in ROM filenames following the No-Intro and Redump naming conventions. Tags appear in parentheses `()` or square brackets `[]` and are used to record region, language, revision, version, and other metadata. Parsed tags are stored per game and are fully filterable in the RomM UI.
+
+**Region tags** — parenthesised region names or standard two-letter codes are recognised and normalised:
+
+```text
+Super Mario World (USA).sfc          → region: United States
+Sonic the Hedgehog (Europe).md       → region: Europe
+Street Fighter II (Japan).sfc        → region: Japan
+Castlevania (USA, Europe).nes        → regions: United States, Europe
+```
+
+**Revision and version tags** — prefixed with `Rev` or `v` / `ver` / `version`:
+
+```text
+Final Fantasy VII (Europe) (Rev 1).bin    → revision: 1
+Pokémon Red (USA) (v1.1).gb              → version: 1.1
+```
+
+**Arbitrary flags** — anything else in brackets is stored as an "other tag" and is still searchable:
+
+```text
+Metroid Prime [!].iso                → other tags: [!]
+Donkey Kong Country (USA) [!].sfc    → region: United States, other tags: [!]
+```
+
+Additional examples showing combined tags:
+
+```text
+Chrono Trigger (USA).sfc
+Tekken 3 (Europe) (En, Fr, De).bin
+The Legend of Zelda - Ocarina of Time (USA) (Rev 1).n64
+Mega Man X (USA) (En) [!].sfc
+```
+
+<Note>
+  Multiple values inside a single tag group can be comma-separated. For example, `(USA, Europe)` is parsed as two separate regions, and `(En, Fr, De)` is parsed as three separate languages.
+</Note>
+
+## BIOS and firmware files
+
+BIOS and firmware files should be placed in the top-level `bios/` directory inside your library, **not** inside the `roms/` folder:
+
+```text
+library/
+├── bios/
+│   ├── scph1001.bin        # PlayStation BIOS
+│   ├── bios_CD_E.bin       # Sega CD (Europe)
+│   └── dc_bios.bin         # Dreamcast BIOS
+└── roms/
+    └── ...
+```
+
+BIOS files are matched to their corresponding platform by filename and hash. Placing them in any other location will prevent RomM (and the in-browser EmulatorJS player) from finding them automatically.

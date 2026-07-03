@@ -1,0 +1,128 @@
+---
+title: "RetroAchievements Integration in RomM"
+sidebarTitle: "RetroAchievements"
+description: "Display achievement lists and track user progress from RetroAchievements.org in your RomM library. Configure your API key and sync user progress."
+---
+
+RomM integrates with [RetroAchievements.org](https://retroachievements.org/) to display achievement lists alongside your ROMs and to track unlock progress per user. When you open a game's detail page, RomM fetches the achievement set for that ROM — identified by matching its hash against the RetroAchievements database — and shows each achievement's title, description, point value, and badge image.
+
+## Prerequisites
+
+- A free account at [retroachievements.org](https://retroachievements.org/)
+- A RetroAchievements **Web API key** (found under **Settings → Keys** on the website)
+
+## Setup
+
+<Steps>
+  <Step title="Generate your API key">
+    Log in to RetroAchievements.org, navigate to **Settings → Keys**, and copy your **Web API Key**.
+  </Step>
+  <Step title="Add the API key to RomM">
+    Set the `RETROACHIEVEMENTS_API_KEY` environment variable in your Docker Compose file:
+
+    ```yaml
+    environment:
+      - RETROACHIEVEMENTS_API_KEY=your_api_key_here
+    ```
+
+    Restart the container for the change to take effect.
+  </Step>
+  <Step title="Scan your library">
+    Run a full library scan (or wait for the scheduled rescan) so RomM can calculate ROM hashes and look up matching achievement sets.
+  </Step>
+  <Step title="View achievements">
+    Open any game that has an achievement set on RetroAchievements. The **Achievements** tab on the game detail page shows each achievement's badge, title, description, point value, and unlock counts.
+  </Step>
+</Steps>
+
+## Configuration
+
+| Variable | Default | Description |
+|---|---|---|
+| `RETROACHIEVEMENTS_API_KEY` | _(empty)_ | Your RetroAchievements Web API key. The integration is disabled when this is not set. |
+| `REFRESH_RETROACHIEVEMENTS_CACHE_DAYS` | `30` | Number of days before the local hash-to-game-ID cache is refreshed from the RetroAchievements API. |
+| `ENABLE_SCHEDULED_RETROACHIEVEMENTS_PROGRESS_SYNC` | `false` | Enable the scheduled progress sync task. |
+| `SCHEDULED_RETROACHIEVEMENTS_PROGRESS_SYNC_CRON` | `0 4 * * *` | Cron expression controlling when the progress sync runs (default: 4 AM daily). |
+
+## How ROM identification works
+
+RetroAchievements identifies games by hashing ROM files using its own hashing algorithm. RomM calculates a hash for each ROM during a scan, then looks it up in a platform-specific hash index downloaded from the RetroAchievements API.
+
+The hash index is stored locally as `ra_hashes_v2.json` inside the platform's resource directory. RomM refreshes this file automatically once the age exceeds `REFRESH_RETROACHIEVEMENTS_CACHE_DAYS`.
+
+<Note>
+  You can force RomM to use a specific RetroAchievements game entry for a ROM by adding an `(ra-XXXXX)` tag to the filename, where `XXXXX` is the RetroAchievements game ID. For example: `Sonic the Hedgehog (USA) (ra-1).md`. This bypasses hash-based lookup and pins the achievement set directly.
+</Note>
+
+### Supported platforms
+
+RomM maps the following platform slugs to RetroAchievements system IDs:
+
+| Platform | RA System ID |
+|---|---|
+| NES / Famicom | 7 |
+| SNES / Super Famicom | 3 |
+| Nintendo 64 | 2 |
+| Game Boy | 4 |
+| Game Boy Color | 6 |
+| Game Boy Advance | 5 |
+| Nintendo DS | 18 |
+| GameCube | 16 |
+| Wii | 19 |
+| Sega Genesis / Mega Drive | 1 |
+| Sega Master System | 11 |
+| Sega CD | 9 |
+| SEGA 32X | 10 |
+| Sega Saturn | 39 |
+| Dreamcast | 40 |
+| Game Gear | 15 |
+| PlayStation | 12 |
+| PlayStation 2 | 21 |
+| PSP | 41 |
+| TurboGrafx-16 | 8 |
+| Atari 2600 | 25 |
+| Atari 7800 | 51 |
+| Lynx | 13 |
+| Jaguar | 17 |
+| Neo Geo Pocket / Color | 14 |
+| MSX / MSX2 | 29 |
+| Arcade | 27 |
+| PC-FX | 49 |
+| Virtual Boy | 28 |
+| WonderSwan / Color | 53 |
+| Pokémon Mini | 24 |
+| Famicom Disk System | 81 |
+| Windows | 102 |
+
+Platforms not in this list will not have RetroAchievements data, but will still appear in your library normally.
+
+## What data RomM fetches
+
+For each matched ROM, RomM retrieves the following from the RetroAchievements API:
+
+- **Game details:** title, cover image, in-game screenshot, release date, genre, publisher, and developer
+- **Achievement list:** for every achievement in the set — RA ID, title, description, point value, badge image URLs (locked and unlocked variants), total unlock counts, display order, and type (progression, win condition, missable, etc.)
+
+User progression data (per-game) includes:
+
+- Total achievements possible
+- Number unlocked (normal and hardcore)
+- Most recent unlock date
+- Highest award kind (e.g. beaten, mastered)
+- Per-achievement unlock date (normal and hardcore)
+
+## Scheduled progress sync
+
+When `ENABLE_SCHEDULED_RETROACHIEVEMENTS_PROGRESS_SYNC=true`, RomM periodically fetches updated progress for all users who have linked their RetroAchievements username. The sync is incremental: if the unlock count and most recent unlock date for a game haven't changed since the last run, RomM skips the per-game API call and reuses cached data, minimising API usage.
+
+```yaml
+environment:
+  - ENABLE_SCHEDULED_RETROACHIEVEMENTS_PROGRESS_SYNC=true
+  - SCHEDULED_RETROACHIEVEMENTS_PROGRESS_SYNC_CRON=0 4 * * *  # 4 AM daily
+```
+
+Progress sync can also be triggered manually from the **Administration → Tasks** page or via the API.
+
+## Linking a RetroAchievements username
+
+Each RomM user can link their RetroAchievements username in their profile settings. Once linked, the achievements tab shows their personal unlock status (locked/unlocked badge overlay) on top of the global achievement data.

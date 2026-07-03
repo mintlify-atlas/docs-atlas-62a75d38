@@ -1,0 +1,293 @@
+---
+title: "Collections API: Curate Game Lists"
+sidebarTitle: "Collections"
+description: "REST endpoints for creating and managing game collections in RomM. Group ROMs across platforms into curated lists."
+---
+
+Collections are user-curated groups of ROMs that span platform boundaries, letting you build playlists like "My Favorites", "Holiday Games", or "RPGs to Finish". RomM also supports **smart collections** (filter-driven, auto-updating) and **virtual collections** (system-generated groupings like by genre or franchise).
+
+---
+
+## Regular Collections
+
+### GET /collections
+
+Retrieve all collections visible to the current user. Public collections from other users are included; private collections belonging to other users are excluded.
+
+**Required scope:** `collections.read`
+
+<ParamField query="updated_after" type="string">
+  ISO 8601 datetime with timezone. Returns only collections updated after this timestamp.
+</ParamField>
+
+```bash
+curl http://localhost:8080/collections \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response:** Array of `CollectionSchema` objects.
+
+<ResponseField name="id" type="integer">Internal collection ID.</ResponseField>
+<ResponseField name="name" type="string">Collection name.</ResponseField>
+<ResponseField name="description" type="string">Collection description.</ResponseField>
+<ResponseField name="is_public" type="boolean">Whether the collection is visible to other users.</ResponseField>
+<ResponseField name="is_favorite" type="boolean">Whether the collection is marked as a favourite.</ResponseField>
+<ResponseField name="user_id" type="integer">ID of the owning user.</ResponseField>
+<ResponseField name="rom_ids" type="integer[]">IDs of ROMs in this collection (hidden ROMs are excluded for the caller).</ResponseField>
+<ResponseField name="rom_count" type="integer">Number of visible ROMs in this collection.</ResponseField>
+<ResponseField name="path_cover_s" type="string | null">Path to the small cover image.</ResponseField>
+<ResponseField name="path_cover_l" type="string | null">Path to the large cover image.</ResponseField>
+<ResponseField name="created_at" type="string">ISO 8601 creation timestamp.</ResponseField>
+<ResponseField name="updated_at" type="string">ISO 8601 last-updated timestamp.</ResponseField>
+
+---
+
+### GET /collections/identifiers
+
+Retrieve only the IDs of collections the current user owns or that are public.
+
+**Required scope:** `collections.read`
+
+```bash
+curl http://localhost:8080/collections/identifiers \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response:** `[1, 2, 5, ...]`
+
+---
+
+### POST /collections
+
+Create a new collection. Accepts `multipart/form-data` to allow cover artwork upload in the same request.
+
+**Required scope:** `collections.write`
+
+<ParamField body="name" type="string" required>
+  Collection name (must be unique for the current user).
+</ParamField>
+
+<ParamField body="description" type="string">
+  Optional description text.
+</ParamField>
+
+<ParamField body="is_public" type="boolean" default="false">
+  Whether the collection should be visible to other users.
+</ParamField>
+
+<ParamField body="is_favorite" type="boolean" default="false">
+  Whether to mark this collection as a favourite.
+</ParamField>
+
+<ParamField body="url_cover" type="string">
+  Remote URL to fetch and store as cover artwork.
+</ParamField>
+
+<ParamField body="artwork" type="file">
+  Cover image file to upload (JPEG/PNG/WebP).
+</ParamField>
+
+```bash
+curl -X POST http://localhost:8080/collections \
+  -H "Authorization: Bearer <token>" \
+  -F "name=My RPG Backlog" \
+  -F "description=All the RPGs I need to finish" \
+  -F "is_public=false"
+```
+
+**Response:** `200 OK` — the newly created `CollectionSchema` object.
+
+---
+
+### GET /collections/{id}
+
+Retrieve a single collection by ID. Returns `403` if the collection is private and owned by another user.
+
+**Required scope:** `collections.read`
+
+<ParamField path="id" type="integer" required>
+  Collection internal ID.
+</ParamField>
+
+```bash
+curl http://localhost:8080/collections/5 \
+  -H "Authorization: Bearer <token>"
+```
+
+---
+
+### PUT /collections/{id}
+
+Replace a collection's ROM list and update its metadata. The full `rom_ids` list is required and replaces the current list entirely.
+
+**Required scope:** `collections.write`
+
+Only the collection's owner can update it.
+
+<ParamField path="id" type="integer" required>
+  Collection internal ID.
+</ParamField>
+
+<ParamField body="rom_ids" type="string" required>
+  JSON array string of ROM IDs that should be in the collection (e.g. `"[1, 2, 3]"`).
+</ParamField>
+
+<ParamField body="name" type="string">Updated collection name.</ParamField>
+<ParamField body="description" type="string">Updated description.</ParamField>
+<ParamField body="is_public" type="boolean">Update visibility.</ParamField>
+<ParamField body="url_cover" type="string">Remote URL for a new cover image.</ParamField>
+<ParamField body="artwork" type="file">New cover image file.</ParamField>
+<ParamField body="remove_cover" type="boolean">Set to `true` to remove the existing cover.</ParamField>
+
+```bash
+curl -X PUT http://localhost:8080/collections/5 \
+  -H "Authorization: Bearer <token>" \
+  -F 'rom_ids=[1,2,3,42]' \
+  -F "name=My RPG Backlog (Updated)"
+```
+
+---
+
+### POST /collections/{id}/roms
+
+Atomically add ROMs to a collection without replacing the full list.
+
+**Required scope:** `collections.write`
+
+<ParamField path="id" type="integer" required>
+  Collection internal ID.
+</ParamField>
+
+<ParamField body="rom_ids" type="integer[]" required>
+  List of ROM IDs to add.
+</ParamField>
+
+```bash
+curl -X POST http://localhost:8080/collections/5/roms \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"rom_ids": [55, 56, 57]}'
+```
+
+---
+
+### DELETE /collections/{id}/roms
+
+Atomically remove ROMs from a collection without replacing the full list.
+
+**Required scope:** `collections.write`
+
+<ParamField path="id" type="integer" required>
+  Collection internal ID.
+</ParamField>
+
+<ParamField body="rom_ids" type="integer[]" required>
+  List of ROM IDs to remove.
+</ParamField>
+
+```bash
+curl -X DELETE http://localhost:8080/collections/5/roms \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"rom_ids": [55]}'
+```
+
+---
+
+### DELETE /collections/{id}
+
+Delete a collection. Only the collection's owner can delete it.
+
+**Required scope:** `collections.write`
+
+<ParamField path="id" type="integer" required>
+  Collection internal ID.
+</ParamField>
+
+```bash
+curl -X DELETE http://localhost:8080/collections/5 \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response:** `204 No Content`.
+
+---
+
+## Smart Collections
+
+Smart collections are filter-driven: RomM evaluates their `filter_criteria` against the library and keeps the ROM list up to date automatically.
+
+### POST /collections/smart
+
+Create a new smart collection.
+
+**Required scope:** `collections.write`
+
+<ParamField body="name" type="string" required>
+  Collection name (unique per user).
+</ParamField>
+
+<ParamField body="description" type="string">Optional description.</ParamField>
+
+<ParamField body="is_public" type="boolean" default="false">
+  Whether the collection is visible to other users.
+</ParamField>
+
+<ParamField body="filter_criteria" type="string" required>
+  JSON string of filter criteria (same filter keys as `GET /roms`). Example: `'{"genres": ["RPG"], "genres_logic": "any"}'`
+</ParamField>
+
+```bash
+curl -X POST http://localhost:8080/collections/smart \
+  -H "Authorization: Bearer <token>" \
+  -F "name=All RPGs" \
+  -F 'filter_criteria={"genres":["RPG"]}'
+```
+
+### GET /collections/smart
+
+Retrieve all smart collections for the current user, plus public ones from other users.
+
+**Required scope:** `collections.read`
+
+<ParamField query="updated_after" type="string">ISO 8601 datetime filter.</ParamField>
+
+### GET /collections/smart/identifiers
+
+Retrieve smart collection IDs. **Required scope:** `collections.read`
+
+### GET /collections/smart/{id}
+
+Retrieve a single smart collection by ID. **Required scope:** `collections.read`
+
+### PUT /collections/smart/{id}
+
+Update a smart collection's name, description, visibility, or filter criteria. **Required scope:** `collections.write`
+
+### DELETE /collections/smart/{id}
+
+Delete a smart collection. **Required scope:** `collections.write`
+
+---
+
+## Virtual Collections
+
+Virtual collections are system-generated groupings (e.g. by genre, franchise, or company) and are read-only.
+
+### GET /collections/virtual
+
+<ParamField query="type" type="string" required>
+  The virtual collection type to retrieve (e.g. `genre`, `franchise`, `company`).
+</ParamField>
+
+<ParamField query="limit" type="integer">
+  Maximum number of virtual collections to return.
+</ParamField>
+
+### GET /collections/virtual/identifiers
+
+Retrieve virtual collection IDs for a given type.
+
+### GET /collections/virtual/{id}
+
+Retrieve a single virtual collection by its generated string ID.

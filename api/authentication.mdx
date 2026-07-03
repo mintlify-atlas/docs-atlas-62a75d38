@@ -1,0 +1,238 @@
+---
+title: "Authenticating with the RomM API"
+sidebarTitle: "Authentication"
+description: "Obtain and use access tokens to authenticate RomM API requests. Covers OAuth2 password flow, token refresh, client tokens, and HTTP Basic auth."
+---
+
+The RomM API supports four authentication methods. OAuth2 bearer tokens are recommended for programmatic access and third-party integrations because they carry explicit scopes, support expiry and refresh, and can be revoked independently of a user's password.
+
+## OAuth2 Password Flow
+
+Exchange a username and password for a short-lived access token and a longer-lived refresh token.
+
+**Endpoint:** `POST /token`
+
+The request body must be `application/x-www-form-urlencoded` (standard OAuth2 form encoding).
+
+<ParamField body="grant_type" type="string" required>
+  Must be `password`.
+</ParamField>
+
+<ParamField body="username" type="string" required>
+  The RomM username.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  The user's password.
+</ParamField>
+
+<ParamField body="scope" type="string">
+  Space-separated list of OAuth2 scopes to request. If omitted, no scopes are included. Must be a subset of the user's allowed scopes.
+</ParamField>
+
+```bash
+curl -X POST http://localhost:8080/token \
+  --data 'grant_type=password&username=admin&password=yourpassword'
+```
+
+**Response:**
+
+```json
+{
+  "access_token": "<jwt>",
+  "refresh_token": "<jwt>",
+  "token_type": "bearer",
+  "expires": 900,
+  "refresh_expires": 604800
+}
+```
+
+<ResponseField name="access_token" type="string">
+  JWT to include in the `Authorization` header of subsequent requests.
+</ResponseField>
+
+<ResponseField name="refresh_token" type="string">
+  JWT used to obtain a new access token without re-entering credentials.
+</ResponseField>
+
+<ResponseField name="token_type" type="string">
+  Always `bearer`.
+</ResponseField>
+
+<ResponseField name="expires" type="integer">
+  Access token lifetime in seconds (controlled by `OAUTH_ACCESS_TOKEN_EXPIRE_SECONDS`).
+</ResponseField>
+
+<ResponseField name="refresh_expires" type="integer">
+  Refresh token lifetime in seconds (controlled by `OAUTH_REFRESH_TOKEN_EXPIRE_SECONDS`).
+</ResponseField>
+
+### Using the Token
+
+Include the access token in the `Authorization` header of every authenticated request:
+
+```bash
+curl http://localhost:8080/platforms \
+  -H "Authorization: Bearer <access_token>"
+```
+
+---
+
+## Token Refresh
+
+When the access token expires, use the refresh token to obtain a new pair without re-entering credentials.
+
+**Endpoint:** `POST /token`
+
+```bash
+curl -X POST http://localhost:8080/token \
+  --data 'grant_type=refresh_token&refresh_token=<your_refresh_token>'
+```
+
+The response shape is identical to the password flow response. Each refresh call issues a new refresh token, invalidating the old one.
+
+---
+
+## Client Tokens (API Keys)
+
+Client tokens are long-lived, named API keys that are stored hashed server-side and carry explicit scopes. They are ideal for scripts, home-automation integrations, and third-party apps that need persistent access.
+
+### Create a Client Token
+
+**Endpoint:** `POST /client-tokens`
+
+Requires the `me.write` scope (i.e., the creating user must be authenticated).
+
+```bash
+curl -X POST http://localhost:8080/client-tokens \
+  -H "Authorization: Bearer <access_token>" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "my-script", "scopes": ["roms.read", "platforms.read"]}'
+```
+
+<ParamField body="name" type="string" required>
+  A human-readable label for the token.
+</ParamField>
+
+<ParamField body="scopes" type="array" required>
+  List of scopes the token should carry. Must be a subset of the user's own allowed scopes.
+</ParamField>
+
+<ParamField body="expires_in" type="string">
+  Optional expiry duration string, e.g. `"30d"`, `"1y"`. If omitted the token does not expire.
+</ParamField>
+
+**Response** (the raw token is only returned once):
+
+```json
+{
+  "id": 1,
+  "name": "my-script",
+  "token": "romm_<raw_token_value>",
+  "scopes": ["roms.read", "platforms.read"],
+  "expires_at": null,
+  "created_at": "2024-01-15T10:00:00Z"
+}
+```
+
+<Warning>
+  The raw token value is only returned at creation time. Store it immediately — it cannot be retrieved again. You can regenerate it via `PUT /client-tokens/{token_id}/regenerate`.
+</Warning>
+
+### Use a Client Token
+
+Client tokens use the same `Authorization: Bearer` header as OAuth2 tokens:
+
+```bash
+curl http://localhost:8080/roms \
+  -H "Authorization: Bearer romm_<raw_token_value>"
+```
+
+### Manage Client Tokens
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/client-tokens` | List your tokens (requires `me.read`) |
+| `DELETE` | `/client-tokens/{token_id}` | Delete a token (requires `me.write`) |
+| `PUT` | `/client-tokens/{token_id}/regenerate` | Issue a new raw value for an existing token |
+| `POST` | `/client-tokens/{token_id}/pair` | Generate a short-lived pairing code |
+| `POST` | `/client-tokens/exchange` | Exchange a pairing code for the token |
+
+<Note>
+  Each user can have a maximum of **25** client tokens. Admins can list and delete all users' tokens via `GET /client-tokens/all` and `DELETE /client-tokens/{token_id}/admin`.
+</Note>
+
+---
+
+## HTTP Basic Auth (Session Login)
+
+The session login endpoint accepts HTTP Basic credentials and sets a server-side session cookie used by the web UI.
+
+**Endpoint:** `POST /login`
+
+```bash
+curl -X POST http://localhost:8080/login \
+  -u admin:yourpassword \
+  -c cookies.txt
+```
+
+The session cookie (`romm_session`) is then sent automatically by browsers. Its lifetime is controlled by the `SESSION_MAX_AGE_SECONDS` environment variable.
+
+<Note>
+  HTTP Basic via `/login` is intended for the web UI session flow. For API integrations prefer OAuth2 bearer tokens or client tokens, which carry explicit scopes and can be independently revoked.
+</Note>
+
+**Logout:** `POST /logout` clears the session. When OIDC RP-Initiated Logout is configured, the response includes an `oidc_logout_url` to redirect the browser to the identity provider.
+
+---
+
+## OIDC / OpenID Connect
+
+When `OIDC_ENABLED=true` is set, users can authenticate via an external OIDC provider:
+
+| Endpoint | Description |
+|---|---|
+| `GET /login/openid` | Redirects the browser to the OIDC authorization endpoint |
+| `GET /oauth/openid` | OIDC callback — exchanges the code, creates or updates the user session |
+
+---
+
+## Password Reset
+
+| Endpoint | Description |
+|---|---|
+| `POST /forgot-password` | Request a password reset link (body: `{"username": "..."}`) |
+| `POST /reset-password` | Reset the password using the emailed token (body: `{"token": "...", "new_password": "..."}`) |
+
+---
+
+## Scopes Reference
+
+Scopes control what actions a token is permitted to perform. When requesting an OAuth2 token or creating a client token, you must specify only scopes that your user account is allowed to grant.
+
+| Scope | Description |
+|---|---|
+| `me.read` | View your own profile |
+| `me.write` | Modify your own profile and manage client tokens |
+| `roms.read` | View ROMs |
+| `roms.write` | Modify ROMs (metadata, files, delete) |
+| `roms.user.read` | View user-ROM properties (ratings, play status) |
+| `roms.user.write` | Modify user-ROM properties |
+| `platforms.read` | View platforms |
+| `platforms.write` | Modify platforms (add, update, delete) |
+| `assets.read` | View save files and save states |
+| `assets.write` | Upload, update, and delete saves and states |
+| `devices.read` | View registered devices |
+| `devices.write` | Manage device registration and sync tracking |
+| `firmware.read` | View firmware files |
+| `firmware.write` | Modify firmware files |
+| `collections.read` | View collections |
+| `collections.write` | Create, update, and delete collections |
+| `users.read` | View all users (admin) |
+| `users.write` | Create, update, and delete users (admin) |
+| `tasks.run` | Trigger and monitor background tasks |
+| `logs.read` | View backend logs |
+
+<Tip>
+  Roles map to scope tiers. A `user` role has read + write scopes for their own content. An `admin` role has the full set including `users.read`, `users.write`, and `tasks.run`.
+</Tip>

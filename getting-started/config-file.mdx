@@ -1,0 +1,351 @@
+---
+title: "RomM config.yml Configuration File Reference"
+sidebarTitle: "Config File"
+description: "Configure scan exclusions, platform name mappings, metadata priority, EmulatorJS settings, and export options using RomM's config.yml file."
+---
+
+`config.yml` is an optional configuration file that unlocks advanced RomM behaviour beyond what environment variables expose — including scan exclusions, custom platform folder mappings, metadata and artwork priority ordering, media asset selection, gamelist/Pegasus export settings, and fine-grained EmulatorJS options. When present, it is read at startup and on every scan. The file is mounted into the container at `/romm/config/config.yml`.
+
+<Note>
+  Only uncommented lines in `config.yml` take effect. The example file ships with every setting commented out; copy only the blocks you need and uncomment them. RomM will use built-in defaults for anything omitted.
+</Note>
+
+## Mounting the config file
+
+<Steps>
+  <Step title="Create a local config directory">
+    Create a `config/` folder next to your `docker-compose.yml`:
+
+    ```bash
+    mkdir -p config
+    ```
+  </Step>
+  <Step title="Create config.yml">
+    Create `config/config.yml` and add the sections you want to customise (see the full reference below). You can also download the annotated [`config.example.yml`](https://github.com/rommapp/romm/blob/master/examples/config.example.yml) and rename it.
+  </Step>
+  <Step title="Mount the directory in Docker Compose">
+    Add a volume binding to the RomM service in your `docker-compose.yml`:
+
+    ```yaml
+    services:
+      romm:
+        volumes:
+          - ./config:/romm/config
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Scan Exclusions
+
+The `exclude` block tells RomM which platforms and ROM files to ignore during scans.
+
+### Excluding platforms
+
+```yaml
+exclude:
+  platforms:
+    - excluded_folder_a
+    - excluded_folder_b
+```
+
+Any folder name listed under `exclude.platforms` will be skipped entirely during library scans.
+
+### Excluding single-file ROMs
+
+The `single_file` block applies only to individual ROM files that are **not** inside a sub-folder (i.e., not multi-disc sets, games with DLC, patches, or updates).
+
+```yaml
+exclude:
+  roms:
+    single_file:
+      # Skip files with these extensions
+      extensions:
+        - xml
+        - txt
+
+      # Skip files whose names match these patterns (unix glob syntax supported)
+      names:
+        - 'info.txt'
+        - '._*'
+        - '*.nfo'
+```
+
+### Excluding multi-file ROM folders
+
+The `multi_file` block applies to sub-folders that RomM treats as multi-file games (e.g., multi-disc titles, ROM hacks with patch files).
+
+<Tip>
+  The `names` list under `multi_file` is perfect for excluding ES-DE media sub-folders that live alongside your ROMs. The example below lists the common ES-DE directories:
+</Tip>
+
+```yaml
+exclude:
+  roms:
+    multi_file:
+      # Exclude folder names that RomM would otherwise treat as multi-file games
+      names:
+        - 3dboxes
+        - backcovers
+        - covers
+        - fanart
+        - manuals
+        - marquees
+        - miximages
+        - physicalmedia
+        - screenshots
+        - titlescreens
+        - videos
+        - downloaded_media
+        - media
+
+      # Exclude specific files inside multi-file ROM sub-folders
+      parts:
+        names:
+          - 'data.xml'
+          - '._*'        # Supports unix glob patterns
+        extensions:
+          - xml
+          - txt
+```
+
+---
+
+## Platform Mappings
+
+The `system.platforms` block lets you map your custom filesystem folder names to the RomM platform slugs that the metadata providers recognise. This is useful when your library uses abbreviated or non-standard folder names.
+
+```yaml
+system:
+  # [your folder name]: [RomM platform slug]
+  platforms:
+    gc: ngc        # "gc" folder → treated as Nintendo GameCube (ngc)
+    ps1: psx       # "ps1" folder → treated as PlayStation (psx)
+```
+
+A full list of valid RomM platform slugs is maintained in the RomM source and the community wiki.
+
+---
+
+## Platform Versions
+
+The `system.versions` block associates a platform with its main (canonical) version. This is currently used by the IGDB provider to resolve related platforms.
+
+```yaml
+system:
+  versions:
+    naomi: arcade  # Sega NAOMI treated as Arcade for IGDB lookups
+```
+
+---
+
+## Filesystem
+
+```yaml
+filesystem:
+  # Override the name of the ROMs sub-folder (relative folder name only, e.g. "retro_games")
+  roms_folder: 'roms'
+
+  # Skip SHA/MD5 hash calculation during scans — recommended on low-power devices
+  # such as Raspberry Pi where hashing large files is slow
+  skip_hash_calculation: false
+```
+
+<Note>
+  `roms_folder` sets the **name** of the ROMs directory relative to your library root — not its full path. Set `ROMM_BASE_PATH` via environment variable to control where the library root lives.
+</Note>
+
+---
+
+## Scan Priority
+
+The `scan.priority` block lets you reorder the sources RomM consults during a scan. Providers listed earlier have higher priority; the first source that returns a result wins.
+
+### Metadata priority
+
+Controls which provider's titles, descriptions, release dates, genres, and other top-level metadata takes precedence.
+
+```yaml
+scan:
+  priority:
+    metadata:
+      - igdb        # IGDB (highest priority)
+      - moby        # MobyGames
+      - ss          # Screenscraper
+      - ra          # RetroAchievements
+      - launchbox   # LaunchBox
+      - gamelist    # ES-DE gamelist.xml
+      - hasheous    # Hasheous
+      - flashpoint  # Flashpoint Project
+      - hltb        # HowLongToBeat (lowest priority)
+```
+
+### Artwork priority
+
+Controls which provider's cover art and screenshots are downloaded first.
+
+```yaml
+scan:
+  priority:
+    artwork:
+      - igdb
+      - moby
+      - ss
+      - ra
+      - launchbox
+      - libretro
+      - gamelist
+      - hasheous
+      - flashpoint
+      - hltb
+```
+
+### Region priority
+
+Used by IGDB and Screenscraper when selecting regional variants of cover art and metadata.
+
+```yaml
+scan:
+  priority:
+    region:
+      - us    # United States (highest priority)
+      - wor   # World / region-free
+      - ss    # Screenscraper "ss" region code
+      - eu    # Europe
+      - jp    # Japan
+```
+
+### Language priority
+
+Used by Screenscraper when selecting the language for game descriptions.
+
+```yaml
+scan:
+  priority:
+    language:
+      - en   # English (highest priority)
+      - fr   # French
+```
+
+---
+
+## Scan Media
+
+The `scan.media` list controls which media asset types are downloaded during scans. Assets are used for artwork display, the EmulatorJS bezel overlay, and exports.
+
+```yaml
+scan:
+  media:
+    # Cover art variants
+    - box2d             # Standard 2D cover art (always fetched when available)
+    - box3d             # 3D box art render
+    - miximage          # Mixed-media composite image (ES-DE mixrbv1 style)
+    - miximage_v2       # Mixed-media composite image (ES-DE mixrbv2 style)
+    - physical          # Physical media scan (disc, cartridge, etc.)
+
+    # Screenshot types (shown in the screenshots carousel)
+    - screenshot        # In-game screenshot
+    - title_screen      # Title/attract screen
+
+    # Additional artwork
+    - fanart            # User-uploaded fan art
+
+    # Emulator overlay
+    - bezel             # Bezel art displayed around the EmulatorJS window
+
+    # Supplementary files
+    - manual            # Game manual in PDF format
+
+    # Video previews (can be large — enable with care)
+    - video             # Full gameplay video
+    - video_normalized  # Normalised/compressed video (smaller file size)
+
+    # Gamelist export assets
+    - box2d_back        # Back cover art
+    - box2d_side        # Box spine (enables the interactive 3D box on detail pages)
+    - logo              # Transparent logo overlay
+
+    # Miscellaneous
+    - marquee           # Custom arcade/cabinet marquee
+```
+
+<Note>
+  `box2d` and `screenshot` are effectively always fetched when a provider has them. `video` files can be very large; only enable them if you have ample storage.
+</Note>
+
+---
+
+## Gamelist Export
+
+RomM can automatically export an ES-DE / Batocera / RetroBAT-compatible `gamelist.xml` after every scan completes.
+
+```yaml
+scan:
+  gamelist:
+    export: false        # Set to true to enable automatic gamelist.xml export
+
+    media:
+      # Choose which media type populates each gamelist tag
+      thumbnail: box2d       # <thumbnail> tag — typically the front cover
+      image: screenshot      # <image> tag — typically a screenshot
+```
+
+---
+
+## Pegasus Export
+
+RomM can also export a [Pegasus](https://pegasus-frontend.org/) `metadata.pegasus.txt` file after scanning.
+
+```yaml
+scan:
+  pegasus:
+    export: false   # Set to true to enable automatic Pegasus metadata export
+```
+
+---
+
+## EmulatorJS Settings
+
+The `emulatorjs` block provides per-core and global configuration for the integrated EmulatorJS player.
+
+```yaml
+emulatorjs:
+  debug: true                  # Log available core options to the browser console
+  cache_limit: null            # Cache limit per ROM in bytes (null = no limit)
+  disable_batch_bootup: false
+  disable_auto_unload: false
+
+  # Per-core settings — use the exact EmulatorJS core name as the key
+  settings:
+    parallel_n64:
+      vsync: disabled
+    snes9x:
+      snes9x_region: ntsc
+    default:                   # Applied to every core that does not have its own block
+      fps: show
+
+  # Netplay configuration
+  netplay:
+    enabled: true
+    ice_servers:
+      - urls: "stun:stun.relay.metered.ca:80"
+      - urls: "turn:global.relay.metered.ca:80"
+        username: "<username>"
+        credential: "<password>"
+
+  # Button mapping — see https://emulatorjs.org/docs4devs/control-mapping/
+  controls:
+    snes9x:
+      0:   # Player 1 — every button must be mapped
+        0:
+          value: x             # Keyboard mapping
+          value2: BUTTON_2     # Gamepad mapping
+      1:   # Player 2
+      2:   # Player 3
+      3:   # Player 4
+```
+
+<Tip>
+  Set `emulatorjs.debug: true` temporarily to discover all configurable options for a specific core. They will be printed to the browser console when you launch a game.
+</Tip>

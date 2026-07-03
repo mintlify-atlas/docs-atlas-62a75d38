@@ -1,0 +1,176 @@
+---
+title: "Game Feeds: Tinfoil, WebRcade, and PKGi"
+sidebarTitle: "Feeds"
+description: "Use RomM's built-in feed endpoints to connect Nintendo Switch (Tinfoil), WebRcade, PlayStation (PKGi), and other frontend clients to your library."
+---
+
+RomM generates specialized feed formats so compatible front-end clients can directly browse and download games from your library. Each feed endpoint translates your stored ROMs into a format understood by a specific app or homebrew tool — no additional software or configuration is required beyond setting up RomM itself.
+
+<Note>
+  Many feed clients (Tinfoil, WebRcade, PKGi) do not support token-based authentication. If you receive `401 Unauthorized` errors when pointing a client at a feed URL, set `DISABLE_DOWNLOAD_ENDPOINT_AUTH=true` in your environment. This disables auth checks on all download and feed endpoints, so only do this on a trusted private network.
+</Note>
+
+## Tinfoil (Nintendo Switch)
+
+**Endpoint:** `GET /feeds/tinfoil`
+
+The Tinfoil feed allows the [Tinfoil](https://tinfoil.io/) homebrew app on Nintendo Switch to browse and install `.nsp`, `.xci`, `.nsz`, `.xcz`, and `.nro` files directly from your RomM library. RomM also builds an inline `titledb` index from your ROM filenames so Tinfoil can display game metadata and box art without a separate title database.
+
+### Setup
+
+<Steps>
+  <Step title="Add your Switch ROMs">
+    Place your Switch ROM files inside `library/roms/switch/`. RomM recognises filenames that contain a TitleDB ID `[<id>]` or a Product ID `[<01xxxxxxxxxxxxxx>]` tag and will extract metadata automatically.
+  </Step>
+  <Step title="Point Tinfoil to your RomM instance">
+    In Tinfoil, go to **File Browser → New** and add a new location using the **Custom HTTP Source** option:
+    - **Protocol:** `http` (or `https` if behind a reverse proxy with TLS)
+    - **Host:** your RomM hostname or IP
+    - **Port:** the port RomM listens on (default `8080`)
+    - **Path:** `/feeds/tinfoil`
+    - **Title:** any label you like (e.g. `RomM Library`)
+  </Step>
+  <Step title="Disable endpoint auth (if needed)">
+    If Tinfoil returns an authorization error, add `DISABLE_DOWNLOAD_ENDPOINT_AUTH=true` to your RomM environment and restart.
+  </Step>
+</Steps>
+
+### Environment variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `TINFOIL_WELCOME_MESSAGE` | `RomM Switch Library` | Message displayed in Tinfoil's welcome screen when it connects to your index |
+| `DISABLE_DOWNLOAD_ENDPOINT_AUTH` | `false` | Disable authentication on download and feed endpoints |
+
+<Tip>
+  Tinfoil is available from [tinfoil.io](https://tinfoil.io/). You need a console capable of running homebrew to use it.
+</Tip>
+
+---
+
+## WebRcade
+
+**Endpoint:** `GET /feeds/webrcade`
+
+The WebRcade feed exposes your library as a [WebRcade](https://www.webrcade.com/) feed. WebRcade is a browser-based emulation front-end, and RomM organises your ROMs into WebRcade categories by platform, complete with cover art thumbnails and backgrounds.
+
+RomM only includes platforms whose slug appears in the supported list. The following platform slugs produce a WebRcade category:
+
+```
+3do, arcade, atari-2600, atari-5200, atari-7800, c64, colecovision, dos,
+game-gear, gb, gba, gbc, genesis-slash-megadrive, lynx, n64, neo-geo-cd,
+neo-geo-pocket, neo-geo-pocket-color, neogeoaes, neogeomvs, nes, pc-fx,
+playstation, sega-cd, sg-1000, sega-master-system, snes, supergrafx,
+turbografx-cd, turbografx-16, virtual-boy, wonderswan, wonderswan-color
+```
+
+To add the feed to WebRcade, open the WebRcade editor, create a new feed, and paste the URL `http://<your-romm-host>/feeds/webrcade`.
+
+<Tip>
+  WebRcade runs entirely in the browser and is free to use at [webrcade.com](https://www.webrcade.com/). You can also self-host it.
+</Tip>
+
+---
+
+## PKGi (PlayStation)
+
+PKGi is a family of homebrew package installers for PlayStation platforms. RomM provides two feed families for PKGi: the older **PKGi** format (CSV, comma-separated) and the newer **PKGj** format (TSV, tab-separated).
+
+<Note>
+  PKGi feeds only include `.pkg` files from your library. Compressed archives and top-level game files are also included where applicable. Make sure your PlayStation ROMs are organised under the correct platform slug (`ps3`, `psvita`, `psp`, `psx`).
+</Note>
+
+### PKGi format (CSV)
+
+These endpoints return a plain-text CSV file in the format expected by the original PKGi apps.
+
+| Platform | Endpoint | Supported content types |
+|---|---|---|
+| PlayStation 3 | `GET /feeds/pkgi/ps3/{content_type}` | `game`, `dlc`, `demo`, `update`, `patch` |
+| PS Vita | `GET /feeds/pkgi/psvita/{content_type}` | `game`, `dlc`, `demo`, `update`, `patch` |
+| PSP | `GET /feeds/pkgi/psp/{content_type}` | `game`, `dlc`, `demo`, `update`, `patch` |
+
+**Example:** `GET /feeds/pkgi/ps3/game` returns a CSV database of all PS3 games in your library.
+
+The PS3 and PSP CSV format is:
+```
+contentid,type,name,description,rap,url,size,checksum
+```
+
+The PS Vita CSV format is:
+```
+contentid,flags,name,name2,zrif,url,size,checksum
+```
+
+### PKGj format (TSV)
+
+These endpoints return tab-separated files compatible with the PKGj homebrew app.
+
+| Platform | Endpoint | Description |
+|---|---|---|
+| PSP games | `GET /feeds/pkgj/psp/games` | PSP game database in PKGj TSV format |
+| PSP DLC | `GET /feeds/pkgj/psp/dlc` | PSP DLC database in PKGj TSV format |
+| PS Vita games | `GET /feeds/pkgj/psvita/games` | PS Vita game database in PKGj TSV format |
+| PS Vita DLC | `GET /feeds/pkgj/psvita/dlc` | PS Vita DLC database in PKGj TSV format |
+| PSX games | `GET /feeds/pkgj/psx/games` | PlayStation 1 game database in PKGj TSV format |
+
+---
+
+## FPKGi (PS4 / PS5)
+
+**Endpoint:** `GET /feeds/fpkgi/{platform_slug}`
+
+The [FPKGi](https://github.com/ItsJokerZz/FPKGi) feed returns a JSON object keyed by download URL, with metadata fields including title, size, region, version, release date, and cover art URL. Use the platform slug `ps4` or `ps5` depending on your library.
+
+**Example:** `GET /feeds/fpkgi/ps4`
+
+```json
+{
+  "DATA": {
+    "http://romm-host/api/roms/42/content/game.pkg": {
+      "name": "Example Game",
+      "size": 1234567890,
+      "title_id": "ROMM00042",
+      "region": "US",
+      "version": "1.05",
+      "release": "2020-11-12",
+      "min_fw": null,
+      "cover_url": "http://romm-host/resources/..."
+    }
+  }
+}
+```
+
+---
+
+## Kekatsu-DS
+
+**Endpoint:** `GET /feeds/kekatsu/{platform_slug}`
+
+The [Kekatsu-DS](https://github.com/cavv-dev/Kekatsu-DS) feed returns a tab-delimited text file for use with the Kekatsu DS homebrew app. It supports any platform in your library — pass the platform slug (e.g. `nds`, `gba`) as the path parameter.
+
+The file format is:
+```
+title	platform	region	version	author	download_url	filename	size	box_art_url
+```
+
+---
+
+## Authentication and feed clients
+
+Most feed clients communicate directly with RomM's HTTP API without supporting OAuth tokens or session cookies. The table below summarises authentication behaviour for each feed:
+
+| Feed | Auth required by default | Notes |
+|---|---|---|
+| `/feeds/tinfoil` | No | Always open; Tinfoil does not support auth |
+| `/feeds/webrcade` | Yes (ROMS_READ scope) | Set `DISABLE_DOWNLOAD_ENDPOINT_AUTH=true` to open |
+| `/feeds/pkgi/*` | Yes (ROMS_READ scope) | Set `DISABLE_DOWNLOAD_ENDPOINT_AUTH=true` to open |
+| `/feeds/pkgj/*` | Yes (ROMS_READ scope) | Set `DISABLE_DOWNLOAD_ENDPOINT_AUTH=true` to open |
+| `/feeds/fpkgi/*` | Yes (ROMS_READ scope) | Set `DISABLE_DOWNLOAD_ENDPOINT_AUTH=true` to open |
+| `/feeds/kekatsu/*` | Yes (ROMS_READ scope) | Set `DISABLE_DOWNLOAD_ENDPOINT_AUTH=true` to open |
+
+```yaml
+# docker-compose.yml — disable feed auth for local network use
+environment:
+  - DISABLE_DOWNLOAD_ENDPOINT_AUTH=true
+```

@@ -1,0 +1,266 @@
+---
+title: "Troubleshooting Common RomM Issues"
+sidebarTitle: "Troubleshooting"
+description: "Diagnose and fix common RomM problems: scan failures, metadata not loading, database connection errors, permission issues, and emulator problems."
+---
+
+This page covers the most common issues users encounter with RomM and their solutions. Start by checking the container logs — most problems leave a clear error message there.
+
+```bash
+# Follow live logs from the RomM container
+docker logs romm -f
+```
+
+<AccordionGroup>
+
+<Accordion title="ROMs not appearing after scan">
+  If a scan completes but your games don't show up in the library, work through these checks:
+
+  **1. Verify your folder structure**
+
+  RomM expects ROMs to be inside a `library/roms/` directory, organised into sub-folders named by platform slug:
+  ```
+  library/
+  └── roms/
+      ├── nes/
+      │   └── Super Mario Bros. (USA).nes
+      ├── snes/
+      │   └── The Legend of Zelda - A Link to the Past (USA).sfc
+      └── switch/
+          └── The Legend of Zelda - Tears of the Kingdom [01002DA013484000].nsp
+  ```
+
+  **2. Check the platform folder name**
+
+  The sub-folder name must match a known platform slug (e.g. `nes`, `snes`, `gb`, `gba`, `psx`). If you use a different name, you need to add a mapping in `config.yml`:
+  ```yaml
+  filesystem:
+    platforms_binding:
+      "NES Games": nes    # maps custom folder name → platform slug
+  ```
+
+  **3. Check the logs for scan errors**
+
+  ```bash
+  docker logs romm -f | grep -i "error\|warning\|skip"
+  ```
+
+  **4. Enable verbose logging**
+
+  Set `LOGLEVEL=DEBUG` in your environment and re-run the scan for detailed output on every file processed.
+</Accordion>
+
+<Accordion title="Metadata not loading / artwork missing">
+  **1. Verify API keys**
+
+  Check that the relevant provider API keys are set correctly in your environment:
+  - `IGDB_CLIENT_ID` and `IGDB_CLIENT_SECRET` for IGDB
+  - `SCREENSCRAPER_USER` and `SCREENSCRAPER_PASSWORD` for Screenscraper
+  - `MOBY_API_KEY` for MobyGames
+  - `STEAMGRIDDB_API_KEY` for SteamGridDB
+
+  Missing or incorrect credentials cause metadata fetches to fail silently for that provider.
+
+  **2. Check network connectivity**
+
+  Make sure your RomM container can reach the metadata provider APIs:
+  ```bash
+  docker exec romm curl -s https://api.igdb.com -o /dev/null -w "%{http_code}"
+  ```
+
+  If you are behind a corporate proxy, set `HTTP_PROXY` and `HTTPS_PROXY` in your environment.
+
+  **3. Watch for rate limits**
+
+  Screenscraper enforces strict per-day and per-minute request limits on free accounts. If you see `429` responses in the logs, reduce `SCAN_WORKERS` to `1` and space out your scans. Screenscraper also blocks requests made without a registered username/password.
+
+  **4. Re-scan with metadata enabled**
+
+  After fixing credentials, trigger a new scan from **Administration → Scan Library** or via the API. Use **Full Scan** rather than Quick Scan to re-fetch metadata for all games.
+</Accordion>
+
+<Accordion title="Database connection error on startup">
+  RomM logs a database connection error and refuses to start if it cannot reach MariaDB. Common causes:
+
+  **1. Incorrect environment variables**
+
+  Ensure these four variables match the MariaDB container configuration exactly:
+  ```yaml
+  # RomM service
+  environment:
+    - DB_HOST=romm-db        # must match the MariaDB service name
+    - DB_NAME=romm           # must match MARIADB_DATABASE
+    - DB_USER=romm-user      # must match MARIADB_USER
+    - DB_PASSWD=secret       # must match MARIADB_PASSWORD
+  ```
+
+  **2. DB_HOST must be the Docker service name, not `localhost`**
+
+  Inside Docker Compose, containers talk to each other by service name. Using `localhost` or `127.0.0.1` will fail because those point to the RomM container itself, not the database container.
+
+  **3. Database container is not healthy yet**
+
+  If RomM starts before MariaDB finishes initialising, the connection will fail. The example `docker-compose.yml` includes a health check and `depends_on` condition to handle this:
+  ```yaml
+  depends_on:
+    romm-db:
+      condition: service_healthy
+      restart: true
+  ```
+
+  Run `docker ps` and check that the `romm-db` container shows `(healthy)` in its status column. If it shows `(starting)`, wait a minute and restart RomM.
+
+  **4. Wrong database driver**
+
+  The default driver is `mariadb`. If you are using MySQL or PostgreSQL, set `ROMM_DB_DRIVER=mysql` or `ROMM_DB_DRIVER=postgresql` accordingly.
+</Accordion>
+
+<Accordion title="Cannot log in / setup wizard not appearing">
+  **ROMM_AUTH_SECRET_KEY is not set**
+
+  This variable is required. Without it, RomM cannot sign or verify tokens and will reject all logins. Generate one with:
+  ```bash
+  openssl rand -hex 32
+  ```
+  Then add it to your environment:
+  ```yaml
+  environment:
+    - ROMM_AUTH_SECRET_KEY=<your_generated_key>
+  ```
+
+  **Setup wizard not showing on first boot**
+
+  If the setup wizard does not appear after a fresh install, check that `DISABLE_SETUP_WIZARD` is not set to `true`. The wizard only shows when no admin user exists in the database.
+
+  **OIDC login not working**
+
+  - Verify `OIDC_REDIRECT_URI` matches the redirect URI registered with your OIDC provider exactly (including trailing slashes).
+  - Check `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, and `OIDC_SERVER_METADATA_URL` are correct.
+  - Set `LOGLEVEL=DEBUG` to see detailed OIDC request and response logging.
+  - If using a self-signed certificate, point `OIDC_TLS_CACERTFILE` to your CA bundle.
+</Accordion>
+
+<Accordion title="EmulatorJS not loading games in the browser">
+  **1. Check that EmulatorJS is enabled**
+
+  Make sure `DISABLE_EMULATOR_JS` is not set to `true` in your environment.
+
+  **2. Verify the ROM format is supported**
+
+  EmulatorJS does not support every ROM format for every core. For example, encrypted Switch NSP files cannot be played in-browser. Check the [EmulatorJS documentation](https://emulatorjs.org/) for supported formats per platform.
+
+  **3. Check the browser console**
+
+  Open your browser's developer tools (F12) and check the **Console** and **Network** tabs for errors. Common issues include:
+  - CORS errors if RomM is accessed via an unusual hostname
+  - WebAssembly blocked by a Content Security Policy on a reverse proxy
+  - Core files failing to load due to a 404
+
+  **4. Content Security Policy on reverse proxies**
+
+  If you use nginx, Caddy, or another reverse proxy, ensure it does not set a `Content-Security-Policy` header that blocks `wasm-eval` or cross-origin resource loading required by EmulatorJS.
+</Accordion>
+
+<Accordion title="Permission denied errors on files or volumes">
+  RomM needs read/write access to the volumes mounted at `/romm/library`, `/romm/resources`, and `/romm/assets`.
+
+  **1. Check host directory permissions**
+
+  The RomM container runs as a non-root user. The host directories must be readable and writable by the UID the container uses. Check the image documentation for the default UID, or run:
+  ```bash
+  docker exec romm id
+  ```
+  Then adjust host permissions:
+  ```bash
+  sudo chown -R <uid>:<gid> /path/to/library /path/to/resources /path/to/assets
+  ```
+
+  **2. Verify volume mounts in docker-compose.yml**
+
+  ```yaml
+  volumes:
+    - /path/to/library:/romm/library
+    - /path/to/assets:/romm/assets
+    - romm_resources:/romm/resources
+  ```
+
+  Make sure the host paths exist and are not typos.
+
+  **3. SELinux / AppArmor**
+
+  On systems with SELinux enabled (e.g. Fedora, RHEL), volume mounts may need a `:z` suffix to relabel the directory:
+  ```yaml
+  volumes:
+    - /path/to/library:/romm/library:z
+  ```
+</Accordion>
+
+<Accordion title="High CPU usage during scan">
+  Library scans are CPU and I/O intensive, especially on large collections. Several settings can reduce the impact:
+
+  **1. Reduce scan workers**
+
+  On low-power hardware (e.g. a Raspberry Pi or older NAS), reduce the number of parallel scan workers:
+  ```yaml
+  environment:
+    - SCAN_WORKERS=1
+  ```
+
+  **2. Skip hash calculation**
+
+  Hash calculation reads every byte of each ROM file. If you do not use RetroAchievements or other hash-based matching, you can skip it in `config.yml`:
+  ```yaml
+  filesystem:
+    skip_hash_calculation: true
+  ```
+
+  **3. Use Quick Scan for rescans**
+
+  Quick Scan only processes files that are new or have changed since the last scan. Use it for routine rescans and reserve Full Scan for when you need to refresh all metadata.
+
+  **4. Schedule scans during off-peak hours**
+
+  Use the scheduled rescan feature to run scans at night when the system is otherwise idle:
+  ```yaml
+  environment:
+    - ENABLE_SCHEDULED_RESCAN=true
+    - SCHEDULED_RESCAN_CRON=0 3 * * *
+  ```
+</Accordion>
+
+<Accordion title="How to view logs">
+  **Live container logs**
+
+  ```bash
+  docker logs romm -f
+  ```
+
+  Add `--tail 100` to show only the last 100 lines:
+  ```bash
+  docker logs romm -f --tail 100
+  ```
+
+  **Increase log verbosity**
+
+  Set `LOGLEVEL=DEBUG` in your environment to enable verbose output including metadata API requests, database queries, and file scan details:
+  ```yaml
+  environment:
+    - LOGLEVEL=DEBUG
+  ```
+
+  **In-app logs viewer**
+
+  RomM includes a built-in log viewer in the administration UI (**Administration → Logs**). This shows the same output as `docker logs` in a convenient browser-based interface. You can disable it with `DISABLE_LOGS_VIEWER=true` if you prefer to manage logs externally.
+</Accordion>
+
+</AccordionGroup>
+
+---
+
+## Still stuck?
+
+If none of the above resolves your issue:
+
+1. Search [existing GitHub issues](https://github.com/rommapp/romm/issues) — your problem may already have a solution.
+2. Join the [RomM Discord server](https://discord.gg/P5HtHnhUDH) and ask in the support channel.
+3. [Open a new GitHub issue](https://github.com/rommapp/romm/issues/new) with your container logs, Docker Compose file (redact passwords), and a description of what you expected to happen.

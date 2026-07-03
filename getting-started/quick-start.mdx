@@ -1,0 +1,181 @@
+---
+title: "Get Started with RomM in Minutes"
+sidebarTitle: "Quick Start"
+description: "Deploy RomM using Docker Compose, configure your database, mount your ROM library, and scan your first games in under 10 minutes."
+---
+
+RomM is a self-hosted ROM manager and player that runs entirely in Docker. It gives you a clean web interface to scan, enrich, browse, and play your game collection — with metadata pulled from IGDB, Screenscraper, MobyGames, and more. This guide walks you through standing up a fully functional instance from scratch.
+
+## Prerequisites
+
+Before you start, make sure you have the following ready:
+
+- **Docker** and **Docker Compose** installed on your host machine
+- **A ROM library directory** on the host containing your game files (see [Folder Structure](/getting-started/folder-structure) for how to organise it)
+- **A database** — the example Compose file below bundles a MariaDB container; you can also point RomM at an existing MariaDB, MySQL, or PostgreSQL instance
+- **`openssl`** available on your host (used to generate the required secret key)
+
+## Docker Compose file
+
+The following `docker-compose.yml` is taken directly from the official example. It defines two services — `romm` (the application) and `romm-db` (a bundled MariaDB instance) — along with the volumes needed for persistent storage.
+
+```yaml
+volumes:
+  mysql_data:
+  romm_resources:
+  romm_redis_data:
+
+services:
+  romm:
+    image: rommapp/romm:latest
+    container_name: romm
+    restart: unless-stopped
+    environment:
+      - DB_HOST=romm-db
+      - DB_NAME=romm # Should match MARIADB_DATABASE in mariadb
+      - DB_USER=romm-user # Should match MARIADB_USER in mariadb
+      - DB_PASSWD= # Should match MARIADB_PASSWORD in mariadb
+      - ROMM_AUTH_SECRET_KEY= # Generate a key with `openssl rand -hex 32`
+      - SCREENSCRAPER_USER= # These are the recommended metadata providers
+      - SCREENSCRAPER_PASSWORD= # https://docs.romm.app/latest/Getting-Started/Metadata-Providers/#screenscraper
+      - RETROACHIEVEMENTS_API_KEY= # https://docs.romm.app/latest/Getting-Started/Metadata-Providers/#retroachievements
+      - STEAMGRIDDB_API_KEY= # https://docs.romm.app/latest/Getting-Started/Metadata-Providers/#steamgriddb
+      - HASHEOUS_API_ENABLED=true # https://docs.romm.app/latest/Getting-Started/Metadata-Providers/#hasheous
+    volumes:
+      - romm_resources:/romm/resources # Resources fetched from IGDB (covers, screenshots, etc.)
+      - romm_redis_data:/redis-data # Cached data for background tasks
+      - /path/to/library:/romm/library # Your game library. Check https://docs.romm.app/latest/Getting-Started/Folder-Structure/ for more details.
+      - /path/to/assets:/romm/assets # Uploaded saves, states, etc.
+      - /path/to/config:/romm/config # (Optional) Path where config.yml is stored
+    ports:
+      - 80:8080
+    depends_on:
+      romm-db:
+        condition: service_healthy
+        restart: true
+
+  romm-db:
+    image: mariadb:latest
+    container_name: romm-db
+    restart: unless-stopped
+    environment:
+      - MARIADB_ROOT_PASSWORD= # Use a unique, secure password
+      - MARIADB_DATABASE=romm
+      - MARIADB_USER=romm-user
+      - MARIADB_PASSWORD=
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      start_period: 30s
+      start_interval: 10s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+```
+
+## Setup steps
+
+<Steps>
+  <Step title="Create the docker-compose.yml file">
+    Create a directory for your RomM deployment and save the Compose file above into it:
+
+    ```bash
+    mkdir romm && cd romm
+    # paste the docker-compose.yml content here
+    ```
+  </Step>
+
+  <Step title="Generate a secret key">
+    RomM requires a random secret key for signing sessions and tokens. Generate one now and keep it handy — you will paste it into the environment variables in the next step:
+
+    ```bash
+    openssl rand -hex 32
+    ```
+
+    The output will be a 64-character hex string, for example:
+    ```text
+    3b2a1f8e4c9d7056ae12bc3498f1e627d4509abc8e3f1d7624c05b9e8a2f3d16
+    ```
+
+    <Warning>
+      Never commit your secret key to version control. Treat it like a password — if it is rotated, all active sessions will be invalidated immediately.
+    </Warning>
+  </Step>
+
+  <Step title="Fill in the required environment variables">
+    Open `docker-compose.yml` and set the following values. All five are required before RomM will start successfully:
+
+    | Variable | Description |
+    |---|---|
+    | `DB_HOST` | Hostname of the database. Use `romm-db` if you are running the bundled MariaDB service. |
+    | `DB_NAME` | Name of the database. Must match `MARIADB_DATABASE` in the `romm-db` service (default: `romm`). |
+    | `DB_USER` | Database username. Must match `MARIADB_USER` in the `romm-db` service (default: `romm-user`). |
+    | `DB_PASSWD` | Database password. Must match `MARIADB_PASSWORD` in `romm-db`. |
+    | `ROMM_AUTH_SECRET_KEY` | The hex string you generated with `openssl rand -hex 32`. |
+
+    Also set `MARIADB_ROOT_PASSWORD` and `MARIADB_PASSWORD` in the `romm-db` service to secure passwords that match `DB_PASSWD`.
+
+    <Note>
+      RomM supports MariaDB, MySQL, and PostgreSQL. To use an external database instead of the bundled one, remove the `romm-db` service and its `depends_on` block, then set `DB_HOST` to point at your external instance. You can also override the driver with the `ROMM_DB_DRIVER` environment variable (`mariadb`, `mysql`, or `postgresql`).
+    </Note>
+  </Step>
+
+  <Step title="Mount your ROM library">
+    In the `volumes` section of the `romm` service, replace `/path/to/library` with the absolute path on your host where your ROMs are stored:
+
+    ```yaml
+    volumes:
+      - /mnt/games/library:/romm/library
+      - /mnt/games/assets:/romm/assets
+      - /path/to/config:/romm/config
+    ```
+
+    RomM expects a specific directory layout inside the mounted library path. See the [Folder Structure](/getting-started/folder-structure) guide for the required layout and platform slug naming.
+
+    <Note>
+      The `assets` volume is where RomM stores uploaded saves, save states, and screenshots. The `config` volume is optional but recommended — it lets you persist your `config.yml` across container recreations.
+    </Note>
+  </Step>
+
+  <Step title="Start the containers">
+    From the directory containing your `docker-compose.yml`, bring up all services in detached mode:
+
+    ```bash
+    docker compose up -d
+    ```
+
+    The `romm-db` service includes a health check, so the `romm` container will wait until MariaDB is fully initialised before starting. On the first run this typically takes 20–40 seconds. You can follow the startup logs with:
+
+    ```bash
+    docker compose logs -f romm
+    ```
+  </Step>
+
+  <Step title="Complete the setup wizard">
+    Once the container is running, open your browser and navigate to:
+
+    ```text
+    http://localhost:80
+    ```
+
+    RomM will present a first-boot setup wizard. Use it to create your **admin user account** — set a strong username and password, as this account has full access to the instance including library management, user administration, and all scan operations.
+
+    <Note>
+      The setup wizard only runs once. If you need to reset it (for example, after a fresh database), you can set `DISABLE_SETUP_WIZARD=false` in your environment and restart the container. To skip the wizard entirely on purpose, set `DISABLE_SETUP_WIZARD=true` before the first boot.
+    </Note>
+
+    After creating your admin account you will land on the main library view. Trigger your first scan from **Settings → Scan** to have RomM walk your mounted library, detect platforms, and pull metadata for every game it finds.
+  </Step>
+</Steps>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Folder Structure" icon="folder-tree" href="/getting-started/folder-structure">
+    Learn the exact directory layout RomM expects for platforms, multi-disk games, DLC, and BIOS files.
+  </Card>
+  <Card title="Metadata Providers" icon="database" href="/getting-started/metadata-providers">
+    Configure IGDB, Screenscraper, MobyGames, SteamGridDB, and RetroAchievements to enrich your library.
+  </Card>
+</CardGroup>

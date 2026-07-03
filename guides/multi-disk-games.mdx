@@ -1,0 +1,178 @@
+---
+title: "Multi-Disk Games, DLCs, and Patches in RomM"
+sidebarTitle: "Multi-Disk Games"
+description: "Structure multi-disk games, DLCs, mods, patches, and manuals so RomM groups them correctly under a single library entry."
+---
+
+RomM handles multi-file games by treating any sub-folder found directly inside a platform directory as a single game entry. All files inside that sub-folder are scanned and categorised as individual `RomFile` records, each carrying a `category` field drawn from the `RomFileCategory` enum. This allows a three-disc PlayStation game, its manual, its DLC, and an IPS patch to all live under one ROM record with distinct download and display options in the UI.
+
+<Warning>
+  RomM only scans **one level** of sub-folder depth. Directories nested inside a multi-file game's folder are not recursively traversed. Keep all game files flat inside the single game sub-folder.
+</Warning>
+
+## Multi-Disc Games
+
+Place all disc images and their associated cue/toc files in a named sub-folder directly under the platform directory:
+
+```
+library/
+└── roms/
+    └── psx/
+        └── Final Fantasy VII/
+            ├── Final Fantasy VII (Disc 1).bin
+            ├── Final Fantasy VII (Disc 1).cue
+            ├── Final Fantasy VII (Disc 2).bin
+            ├── Final Fantasy VII (Disc 2).cue
+            ├── Final Fantasy VII (Disc 3).bin
+            └── Final Fantasy VII (Disc 3).cue
+```
+
+RomM scans the `Final Fantasy VII` sub-folder as one ROM entry. All six files are stored as `RomFile` records with the `game` category and are bundled together for download. If an `.m3u` playlist file is present, the built-in EmulatorJS player uses it to switch discs automatically; the `has_m3u_file()` property on the `Rom` model is used to surface this in the UI.
+
+```
+library/
+└── roms/
+    └── psx/
+        └── Final Fantasy VII/
+            ├── Final Fantasy VII (Disc 1).bin
+            ├── Final Fantasy VII (Disc 1).cue
+            ├── Final Fantasy VII (Disc 2).bin
+            ├── Final Fantasy VII (Disc 2).cue
+            ├── Final Fantasy VII (Disc 3).bin
+            ├── Final Fantasy VII (Disc 3).cue
+            └── Final Fantasy VII.m3u
+```
+
+## File Categories
+
+RomM automatically assigns a category to every file in a multi-file game by matching the sub-folder name against the `RomFileCategory` enum values. The full set of recognised categories is:
+
+| Category | Enum value | Matched folder names |
+|---|---|---|
+| Game | `game` | (top-level files; no sub-folder) |
+| DLC | `dlc` | `dlc`, `dlcs` |
+| Hack | `hack` | `hack`, `hacks` |
+| Manual | `manual` | `manual`, `manuals` |
+| Patch | `patch` | `patch`, `patches` |
+| Update | `update` | `update`, `updates` |
+| Mod | `mod` | `mods` |
+| Demo | `demo` | `demos` |
+| Translation | `translation` | `translation`, `translations` |
+| Prototype | `prototype` | `prototype`, `prototypes` |
+| Cheat | `cheat` | `cheats` |
+| Soundtrack | `soundtrack` | `soundtrack`, `soundtracks` |
+| Screenshot | `screenshot` | `screenshot`, `screenshots` |
+
+The folder name is matched case-insensitively; both singular and plural forms are accepted.
+
+## DLC and Updates
+
+Place DLC content or update packages in a `dlc` or `update` sub-folder respectively:
+
+```
+library/
+└── roms/
+    └── switch/
+        └── The Legend of Zelda - Breath of the Wild/
+            ├── The Legend of Zelda - Breath of the Wild.nsp
+            ├── dlc/
+            │   └── The Legend of Zelda - Breath of the Wild - DLC Pack 1.nsp
+            └── update/
+                └── The Legend of Zelda - Breath of the Wild - v1.6.0.nsp
+```
+
+Each file in the `dlc` and `update` sub-folders is stored as a `RomFile` with the corresponding category. They appear in the game's detail page under separate tabs, can be downloaded individually, and are included in bulk downloads of the full game entry.
+
+## Mods, Hacks, and Patches
+
+Mods, hacks, and patch files (`.ips`, `.bps`, `.xdelta`, and other supported formats) stored in a `patch`, `hack`, or `mod` sub-folder are assigned the appropriate category and displayed in the game's detail view:
+
+```
+library/
+└── roms/
+    └── gba/
+        └── Pokémon FireRed (USA)/
+            ├── Pokémon FireRed (USA).gba
+            └── patch/
+                ├── Pokemon Unbound v2.1.0.bps
+                └── Pokemon Theta Emerald Renev.ips
+```
+
+Patch files can also be applied server-side via the API. RomM reads both the base ROM file and the selected patch file, runs the patch through its built-in engine, and streams the patched binary back as a download — no client-side tooling required. See `POST /api/roms/{id}/patch` in the API reference.
+
+## Manuals
+
+PDF or image manuals placed in a `manual` sub-folder are stored with the `manual` category and surfaced in the game's detail page as a readable document:
+
+```
+library/
+└── roms/
+    └── snes/
+        └── Super Metroid (USA)/
+            ├── Super Metroid (USA).sfc
+            └── manual/
+                └── Super Metroid (USA) - Manual.pdf
+```
+
+The `has_manual_files` property on the `Rom` model reflects whether at least one file with the `manual` category exists, allowing the UI to show or hide the manual viewer tab accordingly.
+
+## Soundtracks
+
+Audio files in a `soundtrack` sub-folder are assigned the `soundtrack` category. RomM extracts embedded cover art from audio files at scan time and stores it alongside the ROM's other resources:
+
+```
+library/
+└── roms/
+    └── psx/
+        └── Chrono Cross/
+            ├── Chrono Cross (Disc 1).bin
+            ├── Chrono Cross (Disc 2).bin
+            └── soundtrack/
+                ├── 01 - CHRONO CROSS ~Scars of Time~.flac
+                └── 02 - Leaving the Body.flac
+```
+
+## Excluding ES-DE and Other Media Folders
+
+Front-end loaders like ES-DE create their own sub-folders (`media`, `downloaded_media`, `videos`, `screenshots`, etc.) inside the ROM directories. Without exclusion RomM would treat these as multi-file game entries and attempt to scan them. Add them to the `exclude.roms.multi_file.names` list in `config.yml` to prevent this:
+
+```yaml
+exclude:
+  roms:
+    multi_file:
+      names:
+        - 3dboxes
+        - backcovers
+        - covers
+        - fanart
+        - manuals
+        - marquees
+        - miximages
+        - physicalmedia
+        - screenshots
+        - titlescreens
+        - videos
+        - downloaded_media
+        - media
+```
+
+Patterns in this list are matched case-insensitively and support Unix shell-style wildcards (e.g. `._*` to skip macOS resource-fork directories).
+
+You can similarly exclude specific file names or extensions from within multi-file game folders using `exclude.roms.multi_file.parts`:
+
+```yaml
+exclude:
+  roms:
+    multi_file:
+      parts:
+        names:
+          - 'data.xml'
+          - '._*'
+        extensions:
+          - xml
+          - txt
+```
+
+<Tip>
+  Single-file game exclusions (`exclude.roms.single_file`) apply only to top-level ROM files and do **not** affect files inside multi-file sub-folders. Use `exclude.roms.multi_file.parts` to filter content inside sub-folders.
+</Tip>

@@ -1,0 +1,66 @@
+---
+title: "RomM: Self-Hosted ROM Manager and Player"
+sidebarTitle: "Introduction"
+description: "RomM is a beautiful, powerful, self-hosted ROM manager and player. Scan, enrich, browse, and play your retro game collection from any browser."
+---
+
+RomM (ROM Manager) is a self-hosted web application that transforms your retro game collection into a fully-featured, browser-accessible library. With support for 400+ platforms, metadata enrichment from multiple providers, and a built-in emulator, RomM is the home for your entire ROM collection.
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/getting-started/quick-start">
+    Deploy RomM with Docker in minutes and scan your first library
+  </Card>
+  <Card title="Folder Structure" icon="folder-open" href="/getting-started/folder-structure">
+    Learn how to organize your ROM files for automatic detection
+  </Card>
+  <Card title="Metadata Providers" icon="database" href="/getting-started/metadata-providers">
+    Configure IGDB, Screenscraper, MobyGames, and more
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Explore the REST API to integrate RomM with your tools
+  </Card>
+</CardGroup>
+
+## What RomM Does
+
+RomM scans a directory of ROM files, automatically identifies each game by filename and hash, then pulls rich metadata — titles, descriptions, cover art, screenshots, ratings, and more — from industry-standard sources like IGDB, MobyGames, and Screenscraper. The result is a polished, searchable library you can access from any browser.
+
+<CardGroup cols={2}>
+  <Card title="Play in Browser" icon="gamepad" href="/guides/emulatorjs">
+    EmulatorJS and RuffleRS power in-browser emulation for hundreds of systems
+  </Card>
+  <Card title="Save Sync" icon="cloud-arrow-up" href="/guides/saves-and-states">
+    Sync save files and states across devices automatically
+  </Card>
+  <Card title="Multi-User" icon="users" href="/getting-started/authentication">
+    Share your library with role-based access control and per-platform permissions
+  </Card>
+  <Card title="Third-Party Apps" icon="puzzle-piece" href="/guides/third-party-apps">
+    Connect Playnite, Android clients, handheld CFWs, and more
+  </Card>
+</CardGroup>
+
+## Key Features
+
+- **400+ platforms** — Nintendo, Sega, Sony, Atari, arcade, and dozens more
+- **Metadata from 10+ sources** — IGDB, MobyGames, Screenscraper, RetroAchievements, SteamGridDB, LaunchBox, Hasheous, HowLongToBeat, and more
+- **In-browser emulation** — Play games directly via EmulatorJS and RuffleRS (Flash)
+- **Cross-device save sync** — Keep your progress wherever you play
+- **Netplay** — Real-time multiplayer via peer-to-peer WebRTC rooms
+- **Feed generation** — Tinfoil (Switch), WebRcade, PKGi (PS3/PSP/Vita), and Kekatsu-DS formats
+- **OIDC/SSO** — Integrate with Authelia, Authentik, Keycloak, and any compliant provider
+- **REST API + WebSockets** — Full programmatic access for integrations and automation
+- **Flexible Docker deployment** — Supports MariaDB, MySQL, and PostgreSQL
+
+## Architecture Overview
+
+RomM runs as a Docker container exposing a web interface on port 8080. It consists of:
+
+- A **FastAPI** backend (Python 3.13+) handling the REST API, WebSocket connections, and background tasks
+- A **Vue 3** single-page application for the browser interface
+- A **MariaDB/MySQL/PostgreSQL** database for persistent storage
+- A **Redis/Valkey** instance for caching, session storage, and background task queues
+
+<Note>
+  RomM does not host or distribute ROM files. You must supply your own legally-obtained ROM collection. Mount your library directory into the container as described in the [Quick Start guide](/getting-started/quick-start).
+</Note>
